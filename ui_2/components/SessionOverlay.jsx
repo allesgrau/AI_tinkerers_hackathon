@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 
 export default function SessionOverlay({ sessionComplete, onClose }) {
+  const [copied, setCopied] = useState(false);
+
   if (!sessionComplete) {
     return null;
   }
@@ -73,31 +75,70 @@ export default function SessionOverlay({ sessionComplete, onClose }) {
               borderRadius: 16,
               background: "rgba(255,255,255,0.03)",
               border: "1px solid rgba(255,255,255,0.08)",
-              color: "#dbe7f7",
-              fontFamily: '"IBM Plex Mono", monospace',
-              fontSize: 12,
-              wordBreak: "break-all",
               marginBottom: 18
             }}
           >
-            {sessionComplete.token}
+            <div style={{ color: "#94a3b8", fontSize: 11, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1.1 }}>
+              JWT token
+            </div>
+            <div
+              style={{
+                color: "#dbe7f7",
+                fontFamily: '"IBM Plex Mono", monospace',
+                fontSize: 12,
+                wordBreak: "break-all",
+                marginBottom: 12
+              }}
+            >
+              {truncateToken(sessionComplete.token)}
+            </div>
+            <button
+              onClick={async () => {
+                if (navigator.clipboard?.writeText) {
+                  await navigator.clipboard.writeText(sessionComplete.token);
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1500);
+                }
+              }}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.04)",
+                color: "#e5edf8",
+                fontWeight: 600,
+                cursor: "pointer"
+              }}
+            >
+              {copied ? "Copied" : "Copy token"}
+            </button>
           </div>
         ) : null}
-        <button
-          onClick={onClose}
-          style={{
-            padding: "12px 16px",
-            borderRadius: 14,
-            border: "none",
-            background: accent,
-            color: "#04111d",
-            fontWeight: 700,
-            cursor: "pointer"
-          }}
-        >
-          Close
-        </button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: "12px 16px",
+              borderRadius: 14,
+              border: "none",
+              background: accent,
+              color: "#04111d",
+              fontWeight: 700,
+              cursor: "pointer"
+            }}
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );
+}
+
+function truncateToken(token) {
+  if (token.length <= 64) {
+    return token;
+  }
+
+  return `${token.slice(0, 40)}...${token.slice(-18)}`;
 }

@@ -19,6 +19,12 @@ export default function SessionSidebar({
   sessionComplete
 }) {
   const [sessionInput, setSessionInput] = useState("");
+  const scenarioLabels = {
+    happy_path: "Happy Path",
+    wrong_voice: "Wrong Voice",
+    brute_force: "Brute Force OTP",
+    replay_attack: "Replay Attack"
+  };
   const status =
     sessionComplete?.result && statusConfig[sessionComplete.result]
       ? statusConfig[sessionComplete.result]
@@ -138,27 +144,52 @@ export default function SessionSidebar({
         <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>
           Demo scenarios
         </div>
-        <div style={{ display: "grid", gap: 8 }}>
-          {scenarios.map((scenario) => {
-            const active = scenario === currentScenario;
-            return (
-              <button
-                key={scenario}
-                onClick={() => startScenario(scenario)}
-                style={{
-                  textAlign: "left",
-                  padding: "12px 14px",
-                  borderRadius: 14,
-                  border: `1px solid ${active ? "#2563eb" : "rgba(255,255,255,0.07)"}`,
-                  background: active ? "rgba(37,99,235,0.14)" : "rgba(255,255,255,0.03)",
-                  color: active ? "#dbeafe" : "#e5edf8",
-                  cursor: "pointer"
-                }}
-              >
-                {scenario.replaceAll("_", " ")}
-              </button>
-            );
-          })}
+        <div
+          style={{
+            padding: 14,
+            borderRadius: 18,
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.07)"
+          }}
+        >
+          <div style={{ color: "#94a3b8", fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>
+            Choose a scripted demo flow for jury mode and replay the verification sequence.
+          </div>
+          <select
+            value={currentScenario}
+            onChange={(event) => startScenario(event.target.value)}
+            style={{
+              width: "100%",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "#0b1220",
+              color: "#e5edf8",
+              padding: "11px 12px",
+              fontSize: 12,
+              marginBottom: 10
+            }}
+          >
+            {scenarios.map((scenario) => (
+              <option key={scenario} value={scenario}>
+                {scenarioLabels[scenario] || scenario.replaceAll("_", " ")}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => startScenario(currentScenario)}
+            style={{
+              width: "100%",
+              padding: "11px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(37,99,235,0.3)",
+              background: "rgba(37,99,235,0.16)",
+              color: "#dbeafe",
+              fontWeight: 600,
+              cursor: "pointer"
+            }}
+          >
+            Run selected scenario
+          </button>
         </div>
       </div>
 

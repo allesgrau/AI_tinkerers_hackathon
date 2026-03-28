@@ -46,6 +46,112 @@ export default function App() {
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 999px; }
+        .workspace-grid {
+          display: grid;
+          min-width: 0;
+        }
+        .dashboard-header {
+          border-bottom: 1px solid #172436;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 22px;
+          gap: 16px;
+        }
+        .header-brand {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          min-width: 0;
+        }
+        .brand-mark {
+          width: 42px;
+          height: 42px;
+          border-radius: 14px;
+          display: grid;
+          place-items: center;
+          background: radial-gradient(circle at top, rgba(56,189,248,0.4), rgba(37,99,235,0.15));
+          border: 1px solid rgba(56,189,248,0.2);
+          color: #dbeafe;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+        }
+        .brand-copy {
+          min-width: 0;
+        }
+        .session-badges {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-top: 8px;
+        }
+        .session-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 7px 10px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.08);
+          color: #cbd5e1;
+          font-size: 11px;
+        }
+        .header-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+        .dashboard-summary {
+          padding: 18px 22px 14px;
+          display: grid;
+          gap: 12px;
+        }
+        .dashboard-main {
+          display: flex;
+          min-height: 0;
+          border-top: 1px solid #172436;
+          border-bottom: 1px solid #172436;
+        }
+        .dashboard-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 22px;
+          color: #64748b;
+          font-size: 11px;
+          gap: 12px;
+        }
+        @media (max-width: 1180px) {
+          .dashboard-summary {
+            padding: 16px 18px 12px;
+          }
+          .dashboard-header {
+            padding: 12px 18px;
+            min-height: 88px;
+          }
+        }
+        @media (max-width: 980px) {
+          .dashboard-main {
+            flex-direction: column;
+          }
+          .dashboard-footer {
+            padding: 10px 18px;
+            min-height: 42px;
+            flex-wrap: wrap;
+          }
+        }
+        @media (max-width: 860px) {
+          .dashboard-header {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+          .header-actions {
+            width: 100%;
+            justify-content: flex-start;
+          }
+        }
       `}</style>
 
       <div
@@ -71,32 +177,31 @@ export default function App() {
         ) : null}
 
         <div
+          className="workspace-grid"
           style={{
-            display: "grid",
-            gridTemplateRows: summaryVisible ? "72px auto 1fr 26px" : "72px 1fr 26px",
-            minWidth: 0
+            gridTemplateRows: summaryVisible ? "92px auto 1fr 26px" : "92px 1fr 26px"
           }}
         >
-          <header
-            style={{
-              borderBottom: "1px solid #172436",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "0 22px",
-              gap: 16
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 22, fontWeight: 700 }}>Operational Dashboard</div>
-              <div style={{ color: "#64748b", fontSize: 12 }}>
-                {activeSessionId
-                  ? `Session ${activeSessionId} · ${mode === "live" ? "live stream" : "demo stream"}`
-                  : "Transcript, reasoning stream, and risk monitoring"}
+          <header className="dashboard-header">
+            <div className="header-brand">
+              <div className="brand-mark">VG</div>
+              <div className="brand-copy">
+                <div style={{ fontSize: 22, fontWeight: 700 }}>VoiceGuard</div>
+                <div style={{ color: "#64748b", fontSize: 12 }}>
+                  Operational dashboard for transcript, reasoning, and verification risk.
+                </div>
+                <div className="session-badges">
+                  <span className="session-badge">
+                    Session: {activeSessionId || "not connected"}
+                  </span>
+                  <span className="session-badge">
+                    {mode === "live" ? "Live session" : "Demo mode"}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <div className="header-actions">
               <button
                 onClick={() => setSidebarVisible((value) => !value)}
                 style={toggleButtonStyle}
@@ -114,34 +219,18 @@ export default function App() {
           </header>
 
           {summaryVisible ? (
-            <section style={{ padding: "18px 22px 14px", display: "grid", gap: 12 }}>
+            <section className="dashboard-summary">
               <RiskIndicators indicators={riskIndicators} />
               <StepProgress steps={steps} />
             </section>
           ) : null}
 
-          <main
-            style={{
-              display: "flex",
-              minHeight: 0,
-              borderTop: "1px solid #172436",
-              borderBottom: "1px solid #172436"
-            }}
-          >
+          <main className="dashboard-main">
             <TranscriptPanel transcript={transcript} />
             <ReasoningPanel reasoning={reasoning} />
           </main>
 
-          <footer
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "0 22px",
-              color: "#64748b",
-              fontSize: 11
-            }}
-          >
+          <footer className="dashboard-footer">
             <span>Powered by VoiceGuard</span>
             <span>
               {sessionComplete
