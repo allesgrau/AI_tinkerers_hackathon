@@ -20,6 +20,15 @@ def apply_schema(connection: sqlite3.Connection) -> None:
     connection.executescript(schema)
 
 
+def reset_demo_data(connection: sqlite3.Connection) -> None:
+    connection.execute("DELETE FROM appointments")
+    connection.execute("DELETE FROM doctors")
+    connection.execute("DELETE FROM patients")
+    connection.execute(
+        "DELETE FROM sqlite_sequence WHERE name IN ('appointments', 'doctors')"
+    )
+
+
 def seed_patients(connection: sqlite3.Connection) -> None:
     connection.executemany(
         """
@@ -94,6 +103,7 @@ def main() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with create_connection() as connection:
         apply_schema(connection)
+        reset_demo_data(connection)
         seed_patients(connection)
         seed_doctors(connection)
         seed_appointments(connection)

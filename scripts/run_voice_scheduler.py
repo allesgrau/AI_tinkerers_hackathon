@@ -10,6 +10,7 @@ from pathlib import Path
 import pyaudio
 from dotenv import load_dotenv
 from google import genai
+from google.genai import errors
 from google.genai import types
 
 
@@ -61,7 +62,13 @@ class VoiceScheduler:
             if text.lower() == "q":
                 raise asyncio.CancelledError("User requested exit")
             if self.session is not None:
-                await self.session.send(input=text or ".", end_of_turn=True)
+                await self.session.send_client_content(
+                    turns={
+                        "role": "user",
+                        "parts": [{"text": text or "."}],
+                    },
+                    turn_complete=True,
+                )
 
     async def listen_audio(self) -> None:
         mic_info = self.pya.get_default_input_device_info()
@@ -89,7 +96,12 @@ class VoiceScheduler:
                 await asyncio.sleep(0.05)
                 continue
             message = await self.audio_out_queue.get()
-            await self.session.send(input=message)
+            await self.session.send_realtime_input(
+                audio={
+                    "data": message["data"],
+                    "mime_type": str(message["mime_type"]),
+                }
+            )
 
     async def receive(self) -> None:
         while True:
@@ -97,16 +109,20 @@ class VoiceScheduler:
                 await asyncio.sleep(0.05)
                 continue
 
-            async for message in self.session.receive():
-                if message.server_content and message.server_content.model_turn:
-                    for part in message.server_content.model_turn.parts:
-                        if part.inline_data and self.audio_in_queue is not None:
-                            self.audio_in_queue.put_nowait(part.inline_data.data)
-                        if part.text:
-                            print(part.text, end="", flush=True)
+            try:
+                async for message in self.session.receive():
+                    if message.server_content and message.server_content.model_turn:
+                        for part in message.server_content.model_turn.parts:
+                            if part.inline_data and self.audio_in_queue is not None:
+                                self.audio_in_queue.put_nowait(part.inline_data.data)
+                            if part.text:
+                                print(part.text, end="", flush=True)
 
-                if message.tool_call:
-                    await self.handle_tool_calls(message.tool_call.function_calls)
+                    if message.tool_call:
+                        await self.handle_tool_calls(message.tool_call.function_calls)
+            except errors.APIError as exc:
+                print(f"\nLive API error: {exc}")
+                raise asyncio.CancelledError("Live API session ended with an error") from exc
 
     async def handle_tool_calls(
         self,
