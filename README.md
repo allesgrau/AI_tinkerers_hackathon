@@ -1,170 +1,130 @@
 # VoiceGuard
 
-**Multi-factor voice identity verification for healthcare.**
-
-VoiceGuard is a Python package that verifies patient identity through three factors:
-
-1. **PESEL + ZIP code** -- patient lookup against a hospital database
-2. **SMS one-time code** -- 6-digit OTP sent via Twilio, SHA-256 hashed
-3. **Speaker voice biometrics** -- ECAPA-TDNN embeddings (SpeechBrain) compared via cosine similarity
-
-All verification events are logged to a tamper-evident hash-chain audit trail, and a signed JWT token is issued on successful authentication.
-
----
-
-## Quick Start
+**Multi-factor voice identity verification — as a Python package.**
 
 ```bash
-# Install from GitHub
 pip install git+https://github.com/allesgrau/AI_tinkerers_hackathon.git
-
-# Start the server
 voiceguard serve
 ```
 
-Open **http://localhost:8000** in your browser.
+That's it. Open `http://localhost:8000` and you have a full identity verification pipeline running.
 
 ---
 
-## Two Interfaces
+## The Problem
 
-| Interface | URL | Description |
-|-----------|-----|-------------|
-| **Landing page** | `/` | Choose which interface to use |
-| **Live Verification** | `/verify` | Interactive 3-step verification: speak your PESEL, receive SMS code, verify your voice |
-| **Ops Dashboard** | `/dashboard` | Real-time monitoring console with transcripts, tool calls, reasoning traces, and risk indicators |
+Every day, hospitals, banks, and government offices handle thousands of sensitive phone calls. The caller says "I'm Jan Kowalski, I need my test results." The agent has no way to truly verify that. Current solutions are either insecure (knowledge-based questions anyone can Google) or unusable (long IVR menus that make people hang up).
 
-### Live Verification (`/verify`)
+Voice AI agents are coming to these institutions fast — but **without real identity verification, they're a liability, not an asset.**
 
-The verification page lets you:
+## Our Solution
 
-- **Enroll** your voice (record 5+ seconds to create a voiceprint)
-- **Verify** your identity (PESEL -> SMS code -> voice match)
+VoiceGuard adds multi-layer identity verification to any voice agent in three lines of integration. The caller talks naturally while being verified through:
 
-Microphone access is required. The page uses the Web Speech API for speech recognition and MediaRecorder for voice capture.
+1. **PESEL + ZIP code** — instant database lookup against patient/citizen records
+2. **SMS one-time code** — cryptographic OTP sent via Twilio, SHA-256 hashed (never stored in plaintext)
+3. **Speaker voice biometrics** — ECAPA-TDNN neural embeddings (SpeechBrain) compared via cosine similarity against an enrolled voiceprint
 
-### Ops Dashboard (`/dashboard`)
+Only after all three factors pass does the agent unlock sensitive actions (booking appointments, sharing medical results, processing requests). A signed JWT token is issued and every step is logged to a **tamper-evident hash-chain audit trail** — critical for healthcare and financial compliance.
 
-A React-based real-time monitoring console that shows:
+## Why This Matters
 
-- Live call transcripts (caller + agent)
-- Tool call activity and results
-- Backend reasoning traces
-- Risk indicators and session state
-- Voice activity visualization
+| Sector | Problem today | With VoiceGuard |
+|--------|--------------|-----------------|
+| **Healthcare** | Phone agents can't verify callers, so they can't share results or book appointments | Verified caller gets full self-service in a natural conversation |
+| **Banking** | Knowledge-based auth is insecure; fraudsters social-engineer their way in | Voice biometrics + OTP = fraud-resistant, hands-free auth |
+| **Government** | Citizens wait on hold for identity checks that take minutes | Automated 3-factor verification in seconds |
 
-To run the dashboard in development mode:
+This isn't a future problem — it's happening now. As institutions deploy voice AI agents, the identity gap becomes a blocker. VoiceGuard removes that blocker.
 
-```bash
-npm install
-npm run dev
-```
+## What Makes This Different
 
-This starts Vite on port 5173 with API proxy to the backend on port 8000.
+**It's a package, not a platform.** Most identity verification solutions are heavyweight SaaS products with enterprise sales cycles. VoiceGuard is a `pip install` that any developer can drop into their existing voice agent. The verification pipeline runs locally, voice embeddings stay on your infrastructure, and the audit chain is in your own SQLite database.
 
----
+**It combines conversation with security.** The caller doesn't navigate menus or press buttons — they just talk. The system listens for their PESEL, sends an SMS, and matches their voice, all within the natural flow of conversation.
 
-## Configuration
-
-Copy `.env.example` to `.env` and fill in your credentials:
-
-```env
-# Required
-GEMINI_API_KEY=your_gemini_api_key
-
-# Twilio SMS (for OTP delivery)
-TWILIO_ACCOUNT_SID=your_sid
-TWILIO_AUTH_TOKEN=your_token
-TWILIO_FROM_NUMBER=+1234567890
-SMS_PROVIDER=twilio
-
-# Optional
-GEMINI_LIVE_MODEL=models/gemini-3.1-flash-live-preview
-GEMINI_LIVE_VOICE=Zephyr
-PUBLIC_BASE_URL=https://your-tunnel-url
-```
+**It's built for compliance.** Every verification step produces a cryptographic audit event linked in an immutable hash chain. Regulators can verify the chain's integrity with one CLI command: `voiceguard audit verify <session-id>`.
 
 ---
 
 ## Architecture
 
 ```
-voiceguard/
-  server/           FastAPI app, WebSocket events, static pages
-  crypto/            Embedding store, JWT tokens, audit chain
-  demo/              Simulated verification scenarios
-  voice.py           Speaker verification (ECAPA-TDNN)
-  otp.py             OTP generation + SHA-256 hashing
-  pesel.py           PESEL format validation
-  session.py         Verification session orchestrator
-  risk.py            Risk assessment scoring
-
-agent/               Gemini Live voice agent + scheduling tools
-app/                 Twilio bridge, call registry, SMS service
-database/            SQLite schema + seed data
-ui_2/                React ops dashboard (Vite)
+Caller ──> Gemini Live (conversation) ──> FastAPI (orchestration)
+                                              |
+                    ┌─────────────────────────┼─────────────────────────┐
+                    |                         |                         |
+              PESEL lookup              Twilio SMS OTP          SpeechBrain voice
+              (SQLite)                  (SHA-256 hashed)        (ECAPA-TDNN, 192-dim)
+                    |                         |                         |
+                    └─────────────────────────┼─────────────────────────┘
+                                              |
+                                     JWT token issued
+                                     Hash-chain audit log
 ```
 
-### Verification Pipeline
-
-```
-Caller -> PESEL lookup -> OTP via SMS -> Voice embedding match -> JWT issued
-              |                |                  |                    |
-          patients DB     SHA-256 hash     cosine similarity     hash-chain
-                          + Twilio SMS     vs enrolled print     audit log
-```
-
-### Security
-
-- OTP codes are SHA-256 hashed before storage (plaintext never persisted)
-- Voice embeddings stored as 192-dim vectors; raw audio is never saved
-- JWT tokens include nonce-based replay prevention
-- All session events recorded in a tamper-evident hash chain
-- Risk scoring combines voice confidence, OTP timing, and attempt count
+**Stack:** Google Gemini Live | FastAPI | Twilio SMS | SpeechBrain | SQLite | React
 
 ---
 
-## Database
+## Two Interfaces
 
-SQLite database (`hospital_agent.db`) with tables for patients, doctors, appointments, voiceprints, SMS verifications, auth sessions, and audit events.
-
-### Test Patients
-
-| Name | PESEL | ZIP |
-|------|-------|-----|
-| John Smith | 02211312345 | 10001 |
-| Mary Johnson | 83051298765 | 10002 |
-| Peter Miller | 99123145678 | 10003 |
+| | URL | What it does |
+|---|---|---|
+| **Live Verification** | `/verify` | Interactive demo — enroll your voice, then go through the full 3-step verification with your microphone |
+| **Ops Dashboard** | `/dashboard` | Real-time monitoring: transcripts, tool calls, reasoning traces, risk scores, session state |
 
 ---
 
-## API Endpoints
+## Honest Note
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/enroll/voice` | POST | Enroll voice (audio -> embedding -> DB) |
-| `/api/verify/pesel` | POST | Verify PESEL against patient DB |
-| `/api/verify/otp/send` | POST | Generate and send OTP via SMS |
-| `/api/verify/otp/verify` | POST | Verify OTP code |
-| `/api/verify/voice` | POST | Verify voice against enrolled embedding |
-| `/api/verify/status` | POST | Get session verification state |
-| `/ws` | WebSocket | Real-time event stream |
-| `/health` | GET | Health check |
+We pivoted mid-hackathon. The code has rough edges and the end-to-end flow isn't bulletproof — we know that. But as a team of 2 undergrads and 2 master's students, we're proud of what we built in the time we had. We discovered some incredible tools (Gemini Live, SpeechBrain, Claude Code) and we genuinely plan to keep working on this after the hackathon because the problem is real and the solution is viable.
+
+What works: the verification pipeline, the audit chain, the voice enrollment, the SMS delivery, the package structure, and the monitoring dashboard. What needs more time: hardening the Twilio call integration and polishing the browser-to-agent flow.
+
+We had a blast building this. Thanks for reading.
 
 ---
 
-## CLI Commands
+## Quick Reference
 
 ```bash
-voiceguard serve              # Start the server
-voiceguard serve --port 9000  # Custom port
-voiceguard demo               # Run with simulated scenarios
-voiceguard audit verify <id>  # Verify audit chain integrity
-voiceguard audit export <id>  # Export audit chain as JSON
+# Install
+pip install git+https://github.com/allesgrau/AI_tinkerers_hackathon.git
+
+# Run
+voiceguard serve
+
+# CLI
+voiceguard serve --port 9000      # custom port
+voiceguard demo                    # simulated scenarios
+voiceguard audit verify <id>       # verify audit chain integrity
+voiceguard audit export <id>       # export audit trail as JSON
+```
+
+### API
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/enroll/voice` | Enroll speaker voiceprint |
+| `POST /api/verify/pesel` | PESEL + ZIP verification |
+| `POST /api/verify/otp/send` | Send SMS OTP |
+| `POST /api/verify/otp/verify` | Verify OTP code |
+| `POST /api/verify/voice` | Speaker voice match |
+| `GET /ws` | Real-time event stream |
+
+### Configuration
+
+Copy `.env.example` to `.env`:
+
+```env
+GEMINI_API_KEY=your_key
+TWILIO_ACCOUNT_SID=your_sid
+TWILIO_AUTH_TOKEN=your_token
+TWILIO_FROM_NUMBER=+1234567890
+SMS_PROVIDER=twilio
 ```
 
 ---
 
-## License
-
-Hackathon project -- AI Tinkerers 2026.
+*Built at AI Tinkerers Hackathon 2026.*
