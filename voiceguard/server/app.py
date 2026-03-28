@@ -398,19 +398,33 @@ async def list_scenarios() -> dict[str, Any]:
     return {"scenarios": available_scenarios()}
 
 
-# ── Serve verify.html ──────────────────────────────────────────────
+# ── Serve static pages ─────────────────────────────────────────────
 
 _static_dir = Path(__file__).resolve().parent / "static"
-_verify_html = _static_dir / "verify.html"
+
+
+@app.get("/")
+async def serve_landing():
+    from fastapi.responses import FileResponse
+    return FileResponse(str(_static_dir / "landing.html"))
 
 
 @app.get("/verify")
 async def serve_verify():
     from fastapi.responses import FileResponse
-    return FileResponse(str(_verify_html))
+    return FileResponse(str(_static_dir / "verify.html"))
 
 
-@app.get("/")
-async def serve_root():
+@app.get("/dashboard")
+async def serve_dashboard():
     from fastapi.responses import FileResponse
-    return FileResponse(str(_verify_html))
+    _project_root = Path(__file__).resolve().parent.parent.parent
+    return FileResponse(str(_project_root / "index.html"))
+
+
+# Serve ui_2/ assets for the React dashboard
+_project_root_for_static = Path(__file__).resolve().parent.parent.parent
+if (_project_root_for_static / "ui_2").is_dir():
+    app.mount("/ui_2", StaticFiles(directory=str(_project_root_for_static / "ui_2")), name="ui2")
+if (_project_root_for_static / "node_modules").is_dir():
+    app.mount("/node_modules", StaticFiles(directory=str(_project_root_for_static / "node_modules")), name="node_modules")
