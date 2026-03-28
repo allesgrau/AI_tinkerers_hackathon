@@ -3,18 +3,21 @@ PATIENTS = [
         "pesel": "02211312345",
         "full_name": "Jan Kowalski",
         "phone_number": "+48501111222",
+        "enrolled_voice_sample": None,
         "verification_zip": "00-001",
     },
     {
         "pesel": "83051298765",
         "full_name": "Maria Nowak",
         "phone_number": "+48503334455",
+        "enrolled_voice_sample": None,
         "verification_zip": "30-002",
     },
     {
         "pesel": "99123145678",
         "full_name": "Piotr Zielinski",
         "phone_number": "+48507778899",
+        "enrolled_voice_sample": None,
         "verification_zip": "80-003",
     },
 ]
