@@ -398,17 +398,19 @@ async def list_scenarios() -> dict[str, Any]:
     return {"scenarios": available_scenarios()}
 
 
-# ── Serve verify.html and built UI ─────────────────────────────────
+# ── Serve verify.html ──────────────────────────────────────────────
 
-_project_root = Path(__file__).resolve().parent.parent.parent
+_static_dir = Path(__file__).resolve().parent / "static"
+_verify_html = _static_dir / "verify.html"
 
 
 @app.get("/verify")
 async def serve_verify():
     from fastapi.responses import FileResponse
-    return FileResponse(str(_project_root / "verify.html"))
+    return FileResponse(str(_verify_html))
 
 
-_ui_dist = _project_root / "ui" / "dist"
-if _ui_dist.is_dir():
-    app.mount("/", StaticFiles(directory=str(_ui_dist), html=True), name="ui")
+@app.get("/")
+async def serve_root():
+    from fastapi.responses import FileResponse
+    return FileResponse(str(_verify_html))

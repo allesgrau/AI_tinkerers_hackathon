@@ -30,3 +30,10 @@ voiceguard = "voiceguard.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["voiceguard*"]
+
+[tool.setuptools.package-data]
+"voiceguard.server" = ["static/*.html"]
+
+[project.urls]
+Homepage = "https://github.com/allesgrau/AI_tinkerers_hackathon"
+Repository = "https://github.com/allesgrau/AI_tinkerers_hackathon"

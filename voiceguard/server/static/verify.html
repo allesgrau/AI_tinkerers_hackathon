@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoiceGuard - Identity Verification</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e17; color: #e0e6ed; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .container { max-width: 520px; width: 100%; padding: 32px; }
+  h1 { font-size: 24px; margin-bottom: 8px; color: #fff; }
+  .subtitle { color: #8892a4; margin-bottom: 32px; font-size: 14px; }
+  .step { background: #141926; border: 1px solid #1e2738; border-radius: 12px; padding: 20px; margin-bottom: 16px; transition: all 0.3s; }
+  .step.active { border-color: #3b82f6; box-shadow: 0 0 20px rgba(59,130,246,0.15); }
+  .step.done { border-color: #22c55e; }
+  .step.failed { border-color: #ef4444; }
+  .step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .step-number { width: 28px; height: 28px; border-radius: 50%; background: #1e2738; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+  .step.done .step-number { background: #22c55e; color: #000; }
+  .step.active .step-number { background: #3b82f6; color: #fff; }
+  .step-title { font-size: 16px; font-weight: 600; }
+  .step-body { margin-left: 40px; }
+  .step-body p { color: #8892a4; font-size: 14px; margin-bottom: 12px; }
+  .btn { background: #3b82f6; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 500; transition: background 0.2s; }
+  .btn:hover { background: #2563eb; }
+  .btn:disabled { background: #1e2738; color: #4a5568; cursor: not-allowed; }
+  .btn-danger { background: #ef4444; }
+  .btn-danger:hover { background: #dc2626; }
+  .btn-success { background: #22c55e; }
+  .btn-success:hover { background: #16a34a; }
+  input[type="text"] { background: #1e2738; border: 1px solid #2d3748; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 14px; width: 100%; margin-bottom: 12px; outline: none; }
+  input[type="text"]:focus { border-color: #3b82f6; }
+  .status { font-size: 13px; padding: 8px 12px; border-radius: 6px; margin-top: 8px; }
+  .status-info { background: #1e3a5f; color: #93c5fd; }
+  .status-ok { background: #14532d; color: #86efac; }
+  .status-err { background: #450a0a; color: #fca5a5; }
+  .mic-indicator { display: inline-flex; align-items: center; gap: 8px; }
+  .mic-dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .hidden { display: none !important; }
+  .result-box { background: #141926; border: 2px solid #22c55e; border-radius: 12px; padding: 24px; text-align: center; margin-top: 16px; }
+  .result-box.fail { border-color: #ef4444; }
+  .result-box h2 { margin-bottom: 8px; }
+  .mode-switch { display: flex; gap: 8px; margin-bottom: 24px; }
+  .mode-btn { flex: 1; padding: 12px; border: 1px solid #1e2738; background: #141926; color: #8892a4; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; text-align: center; transition: all 0.2s; }
+  .mode-btn.active { border-color: #3b82f6; color: #fff; background: #1a2332; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>VoiceGuard</h1>
+  <p class="subtitle">Multi-factor identity verification</p>
+
+  <div class="mode-switch">
+    <div class="mode-btn active" onclick="switchMode('verify')" id="mode-verify">Verify Identity</div>
+    <div class="mode-btn" onclick="switchMode('enroll')" id="mode-enroll">Enroll Voice</div>
+  </div>
+
+  <!-- ===== ENROLL MODE ===== -->
+  <div id="enroll-panel" class="hidden">
+    <div class="step active" id="enroll-step">
+      <div class="step-header">
+        <div class="step-number">1</div>
+        <div class="step-title">Voice Enrollment</div>
+      </div>
+      <div class="step-body">
+        <p>Record your voice to create a voiceprint. Speak naturally for at least 5 seconds.</p>
+        <input type="text" id="enroll-pesel" placeholder="Enter your PESEL" maxlength="11">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn" id="enroll-rec-btn" onclick="toggleEnrollRecording()">Start Recording</button>
+          <span id="enroll-mic" class="mic-indicator hidden"><span class="mic-dot"></span> Recording...</span>
+        </div>
+        <div id="enroll-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== VERIFY MODE ===== -->
+  <div id="verify-panel">
+    <!-- Step 0: Background voice recording -->
+    <div class="step active" id="step-voice-rec">
+      <div class="step-header">
+        <div class="step-number">0</div>
+        <div class="step-title">Start Verification Session</div>
+      </div>
+      <div class="step-body">
+        <p>Click below to start. Your microphone will record your voice during the entire session for verification.</p>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn" id="start-session-btn" onclick="startSession()">Start Session</button>
+          <span id="session-mic" class="mic-indicator hidden"><span class="mic-dot"></span> Recording voice...</span>
+        </div>
+        <div id="step0-status"></div>
+      </div>
+    </div>
+
+    <!-- Step 1: PESEL -->
+    <div class="step" id="step-pesel">
+      <div class="step-header">
+        <div class="step-number">1</div>
+        <div class="step-title">PESEL Verification</div>
+      </div>
+      <div class="step-body">
+        <p>Enter or speak your PESEL number.</p>
+        <input type="text" id="pesel-input" placeholder="Enter 11-digit PESEL" maxlength="11" disabled>
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="pesel-submit" onclick="submitPesel()" disabled>Verify PESEL</button>
+          <button class="btn" id="pesel-mic-btn" onclick="listenForPesel()" disabled style="background:#1e2738;color:#93c5fd">Speak PESEL</button>
+        </div>
+        <div id="step1-status"></div>
+      </div>
+    </div>
+
+    <!-- Step 2: OTP -->
+    <div class="step" id="step-otp">
+      <div class="step-header">
+        <div class="step-number">2</div>
+        <div class="step-title">SMS Verification</div>
+      </div>
+      <div class="step-body">
+        <p>An SMS code will be sent to your registered phone number.</p>
+        <input type="text" id="otp-input" placeholder="Enter 6-digit code" maxlength="6" disabled>
+        <button class="btn" id="otp-submit" onclick="submitOtp()" disabled>Verify Code</button>
+        <div id="step2-status"></div>
+      </div>
+    </div>
+
+    <!-- Step 3: Voice -->
+    <div class="step" id="step-voice">
+      <div class="step-header">
+        <div class="step-number">3</div>
+        <div class="step-title">Voice Verification</div>
+      </div>
+      <div class="step-body">
+        <p>Your voice recording will be compared against your enrolled voiceprint.</p>
+        <button class="btn" id="voice-submit" onclick="submitVoice()" disabled>Verify My Voice</button>
+        <div id="step3-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="final-result" class="hidden"></div>
+</div>
+
+<script>
+const API = window.location.origin;
+let sessionId = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecordingSession = false;
+
+// ===== MODE SWITCHING =====
+function switchMode(mode) {
+  document.getElementById('enroll-panel').classList.toggle('hidden', mode !== 'enroll');
+  document.getElementById('verify-panel').classList.toggle('hidden', mode !== 'verify');
+  document.getElementById('mode-enroll').classList.toggle('active', mode === 'enroll');
+  document.getElementById('mode-verify').classList.toggle('active', mode === 'verify');
+}
+
+// ===== ENROLLMENT =====
+let enrollRecorder = null;
+let enrollChunks = [];
+
+async function toggleEnrollRecording() {
+  const btn = document.getElementById('enroll-rec-btn');
+  const mic = document.getElementById('enroll-mic');
+  const pesel = document.getElementById('enroll-pesel').value.trim();
+
+  if (!pesel || pesel.length !== 11) {
+    setStatus('enroll-status', 'Enter a valid 11-digit PESEL first', 'err');
+    return;
+  }
+
+  if (enrollRecorder && enrollRecorder.state === 'recording') {
+    enrollRecorder.stop();
+    btn.textContent = 'Start Recording';
+    btn.classList.remove('btn-danger');
+    mic.classList.add('hidden');
+    return;
+  }
+
+  enrollChunks = [];
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  enrollRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+  enrollRecorder.ondataavailable = e => { if (e.data.size > 0) enrollChunks.push(e.data); };
+  enrollRecorder.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop());
+    setStatus('enroll-status', 'Processing enrollment...', 'info');
+    const blob = new Blob(enrollChunks, { type: 'audio/webm' });
+    const b64 = await blobToBase64(blob);
+    try {
+      const res = await fetch(`${API}/api/enroll/voice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pesel, audio_base64: b64 }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setStatus('enroll-status', `Voice enrolled! Embedding: ${data.embedding_dim}-dim, hash: ${data.voiceprint_hash.slice(0, 12)}...`, 'ok');
+        document.getElementById('enroll-step').classList.add('done');
+      } else {
+        setStatus('enroll-status', `Enrollment failed: ${data.message || 'Unknown error'}`, 'err');
+      }
+    } catch (e) {
+      setStatus('enroll-status', `Error: ${e.message}`, 'err');
+    }
+  };
+  enrollRecorder.start(250);
+  btn.textContent = 'Stop Recording';
+  btn.classList.add('btn-danger');
+  mic.classList.remove('hidden');
+  setStatus('enroll-status', 'Speak naturally for at least 5 seconds...', 'info');
+}
+
+// ===== VERIFICATION SESSION =====
+async function startSession() {
+  sessionId = 'session-' + crypto.randomUUID().slice(0, 8);
+
+  // Start mic recording for the whole session
+  audioChunks = [];
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.start(250);
+    isRecordingSession = true;
+
+    document.getElementById('session-mic').classList.remove('hidden');
+    document.getElementById('start-session-btn').disabled = true;
+    document.getElementById('step-voice-rec').classList.add('done');
+    setStatus('step0-status', 'Microphone active. Proceed with verification.', 'ok');
+
+    // Enable PESEL step
+    document.getElementById('step-pesel').classList.add('active');
+    document.getElementById('pesel-input').disabled = false;
+    document.getElementById('pesel-submit').disabled = false;
+    document.getElementById('pesel-mic-btn').disabled = false;
+  } catch (e) {
+    setStatus('step0-status', `Microphone error: ${e.message}`, 'err');
+  }
+}
+
+// ===== PESEL =====
+function listenForPesel() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    setStatus('step1-status', 'Speech recognition not supported in this browser. Type your PESEL instead.', 'err');
+    return;
+  }
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'pl-PL';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  setStatus('step1-status', 'Listening... speak your PESEL number', 'info');
+  document.getElementById('pesel-mic-btn').disabled = true;
+
+  recognition.onresult = (event) => {
+    let spoken = event.results[0][0].transcript;
+    // Extract digits from spoken text
+    let digits = spoken.replace(/\D/g, '');
+    document.getElementById('pesel-input').value = digits;
+    setStatus('step1-status', `Heard: "${spoken}" -> ${digits}`, 'info');
+    document.getElementById('pesel-mic-btn').disabled = false;
+  };
+  recognition.onerror = (event) => {
+    setStatus('step1-status', `Speech error: ${event.error}. Type your PESEL instead.`, 'err');
+    document.getElementById('pesel-mic-btn').disabled = false;
+  };
+  recognition.onend = () => {
+    document.getElementById('pesel-mic-btn').disabled = false;
+  };
+  recognition.start();
+}
+
+async function submitPesel() {
+  const pesel = document.getElementById('pesel-input').value.trim();
+  if (!pesel || pesel.length !== 11) {
+    setStatus('step1-status', 'Enter a valid 11-digit PESEL', 'err');
+    return;
+  }
+
+  setStatus('step1-status', 'Verifying...', 'info');
+  try {
+    const res = await fetch(`${API}/api/verify/pesel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, pesel }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setStatus('step1-status', `Verified: ${data.patient_name}`, 'ok');
+      document.getElementById('step-pesel').classList.remove('active');
+      document.getElementById('step-pesel').classList.add('done');
+      document.getElementById('pesel-input').disabled = true;
+      document.getElementById('pesel-submit').disabled = true;
+      document.getElementById('pesel-mic-btn').disabled = true;
+
+      // Auto-send OTP
+      await sendOtp();
+    } else {
+      setStatus('step1-status', `Failed: ${data.message || 'Patient not found'}`, 'err');
+    }
+  } catch (e) {
+    setStatus('step1-status', `Error: ${e.message}`, 'err');
+  }
+}
+
+async function sendOtp() {
+  document.getElementById('step-otp').classList.add('active');
+  setStatus('step2-status', 'Sending SMS code...', 'info');
+  try {
+    const res = await fetch(`${API}/api/verify/otp/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      let msg = 'SMS sent! Check your phone and enter the code.';
+      if (data.otp_code_for_demo) {
+        msg += ` (Demo code: ${data.otp_code_for_demo})`;
+      }
+      setStatus('step2-status', msg, 'ok');
+      document.getElementById('otp-input').disabled = false;
+      document.getElementById('otp-submit').disabled = false;
+    } else {
+      setStatus('step2-status', `Failed: ${data.message}`, 'err');
+    }
+  } catch (e) {
+    setStatus('step2-status', `Error: ${e.message}`, 'err');
+  }
+}
+
+async function submitOtp() {
+  const code = document.getElementById('otp-input').value.trim();
+  if (!code) {
+    setStatus('step2-status', 'Enter the code from SMS', 'err');
+    return;
+  }
+
+  setStatus('step2-status', 'Verifying code...', 'info');
+  try {
+    const res = await fetch(`${API}/api/verify/otp/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, code }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setStatus('step2-status', 'Code verified!', 'ok');
+      document.getElementById('step-otp').classList.remove('active');
+      document.getElementById('step-otp').classList.add('done');
+      document.getElementById('otp-input').disabled = true;
+      document.getElementById('otp-submit').disabled = true;
+
+      // Enable voice step
+      document.getElementById('step-voice').classList.add('active');
+      document.getElementById('voice-submit').disabled = false;
+    } else {
+      setStatus('step2-status', 'Wrong code. Try again.', 'err');
+    }
+  } catch (e) {
+    setStatus('step2-status', `Error: ${e.message}`, 'err');
+  }
+}
+
+// ===== VOICE VERIFICATION =====
+async function submitVoice() {
+  if (!mediaRecorder || audioChunks.length === 0) {
+    setStatus('step3-status', 'No audio recorded', 'err');
+    return;
+  }
+
+  // Stop recording
+  mediaRecorder.stop();
+  mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  document.getElementById('session-mic').classList.add('hidden');
+  isRecordingSession = false;
+
+  setStatus('step3-status', 'Processing voice verification...', 'info');
+  document.getElementById('voice-submit').disabled = true;
+
+  // Wait a moment for final chunks
+  await new Promise(r => setTimeout(r, 500));
+
+  const blob = new Blob(audioChunks, { type: 'audio/webm' });
+  const b64 = await blobToBase64(blob);
+
+  try {
+    const res = await fetch(`${API}/api/verify/voice`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, audio_base64: b64 }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const score = (data.voice_score * 100).toFixed(1);
+      setStatus('step3-status', `Voice match: ${score}%`, 'ok');
+      document.getElementById('step-voice').classList.remove('active');
+      document.getElementById('step-voice').classList.add('done');
+
+      if (data.completed) {
+        showResult(true, `Identity verified! Session token issued.`);
+      } else {
+        showResult(true, `Voice verified (${score}%) but session incomplete.`);
+      }
+    } else {
+      const score = data.voice_score ? (data.voice_score * 100).toFixed(1) : '0';
+      setStatus('step3-status', `Voice mismatch: ${score}%`, 'err');
+      document.getElementById('step-voice').classList.add('failed');
+      showResult(false, `Voice verification failed (${score}% similarity)`);
+    }
+  } catch (e) {
+    setStatus('step3-status', `Error: ${e.message}`, 'err');
+  }
+}
+
+// ===== HELPERS =====
+function setStatus(id, msg, type) {
+  const el = document.getElementById(id);
+  el.innerHTML = `<div class="status status-${type}">${msg}</div>`;
+}
+
+function showResult(success, msg) {
+  const el = document.getElementById('final-result');
+  el.classList.remove('hidden');
+  el.innerHTML = `<div class="result-box ${success ? '' : 'fail'}"><h2>${success ? 'Authorized' : 'Denied'}</h2><p>${msg}</p></div>`;
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    reader.readAsDataURL(blob);
+  });
+}
+</script>
+</body>
+</html>
