@@ -28,7 +28,7 @@ export default function ToolActivityPanel({ toolActivity }) {
       <div
         style={{
           height: 52,
-          borderBottom: "1px solid #172436",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -38,7 +38,7 @@ export default function ToolActivityPanel({ toolActivity }) {
         <div>
           <div
             style={{
-              color: "#60a5fa",
+              color: "#8bf5b2",
               fontSize: 11,
               textTransform: "uppercase",
               letterSpacing: 1.1
@@ -46,7 +46,7 @@ export default function ToolActivityPanel({ toolActivity }) {
           >
             Tool activity
           </div>
-          <div style={{ color: "#64748b", fontSize: 12 }}>
+          <div style={{ color: "rgba(228, 232, 241, 0.48)", fontSize: 12 }}>
             Database checks and booking actions
           </div>
         </div>
@@ -93,10 +93,10 @@ function EmptyState() {
     <div
       style={{
         padding: 18,
-        borderRadius: 18,
+        borderRadius: 20,
         background: "rgba(255,255,255,0.03)",
         border: "1px dashed rgba(255,255,255,0.08)",
-        color: "#94a3b8",
+        color: "rgba(228, 232, 241, 0.68)",
         fontSize: 13,
         lineHeight: 1.6
       }}
@@ -110,9 +110,9 @@ function ToolEventCard({ item }) {
   const isCall = item.kind === "call";
   const accent =
     isCall
-      ? "#60a5fa"
+      ? "#64d9ff"
       : item.success === true
-        ? "#22c55e"
+        ? "#8bf5b2"
         : item.success === false
           ? "#ef4444"
           : "#94a3b8";
@@ -123,9 +123,10 @@ function ToolEventCard({ item }) {
     <div
       style={{
         padding: "12px 14px",
-        borderRadius: 16,
-        background: "rgba(255,255,255,0.03)",
-        border: `1px solid ${accent}33`
+        borderRadius: 18,
+        background: "linear-gradient(180deg, rgba(19, 29, 39, 0.96), rgba(12, 18, 27, 0.92))",
+        border: `1px solid ${accent}22`,
+        boxShadow: "0 16px 36px rgba(0,0,0,0.18)"
       }}
     >
       <div
@@ -139,9 +140,9 @@ function ToolEventCard({ item }) {
         }}
       >
         <span style={{ color: accent, textTransform: "uppercase" }}>{title}</span>
-        <span style={{ color: "#64748b" }}>{item.ts || "--:--:--"}</span>
+        <span style={{ color: "rgba(228, 232, 241, 0.48)" }}>{item.ts || "--:--:--"}</span>
       </div>
-      <div style={{ color: "#e5edf8", fontWeight: 700, marginBottom: 8 }}>
+      <div style={{ color: "#f5f7fb", fontWeight: 700, marginBottom: 8 }}>
         {item.name}
       </div>
       <pre
@@ -149,8 +150,8 @@ function ToolEventCard({ item }) {
           margin: 0,
           padding: 12,
           borderRadius: 12,
-          background: "rgba(2,6,23,0.55)",
-          color: "#cbd5e1",
+          background: "rgba(255,255,255,0.03)",
+          color: "rgba(245, 247, 251, 0.88)",
           fontSize: 11,
           lineHeight: 1.5,
           fontFamily: '"IBM Plex Mono", monospace',

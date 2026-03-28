@@ -39,11 +39,11 @@ export default function TranscriptPanel({ transcript }) {
   }, [transcript]);
 
   return (
-    <div style={{ flex: 0.42, display: "flex", flexDirection: "column", minWidth: 0, borderRight: "1px solid #172436" }}>
-      <div style={{ height: 52, borderBottom: "1px solid #172436", display: "flex", alignItems: "center", padding: "0 18px" }}>
+    <div style={{ flex: 0.42, display: "flex", flexDirection: "column", minWidth: 0, borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+      <div style={{ height: 52, borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", padding: "0 18px" }}>
         <div>
-          <div style={{ color: "#a78bfa", fontSize: 11, textTransform: "uppercase", letterSpacing: 1.1 }}>Transcript</div>
-          <div style={{ color: "#64748b", fontSize: 12 }}>Live call transcription</div>
+          <div style={{ color: "#8bf5b2", fontSize: 11, textTransform: "uppercase", letterSpacing: 1.1 }}>Transcript</div>
+          <div style={{ color: "rgba(228, 232, 241, 0.48)", fontSize: 12 }}>Live call transcription</div>
         </div>
       </div>
       <div ref={ref} style={{ flex: 1, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -58,16 +58,21 @@ export default function TranscriptPanel({ transcript }) {
                   maxWidth: "82%",
                   padding: "10px 14px",
                   borderRadius: isAgent ? "16px 16px 16px 6px" : "16px 16px 6px 16px",
-                  background: isAgent ? "rgba(255,255,255,0.035)" : isFlagged ? "rgba(127,29,29,0.14)" : "rgba(14,116,144,0.14)",
+                  background: isAgent
+                    ? "linear-gradient(180deg, rgba(22, 28, 38, 0.88), rgba(14, 18, 27, 0.82))"
+                    : isFlagged
+                      ? "rgba(127,29,29,0.14)"
+                      : "rgba(117, 255, 163, 0.1)",
                   border: isAgent
-                    ? "1px solid rgba(255,255,255,0.06)"
+                    ? "1px solid rgba(255,255,255,0.08)"
                     : isFlagged
                       ? "1px solid rgba(239,68,68,0.28)"
-                      : "1px solid rgba(56,189,248,0.18)",
-                  color: "#e5edf8",
+                      : "1px solid rgba(117, 255, 163, 0.18)",
+                  color: "#f5f7fb",
                   lineHeight: 1.6,
                   position: "relative",
-                  transition: "all 200ms ease"
+                  transition: "all 200ms ease",
+                  boxShadow: "0 14px 30px rgba(0,0,0,0.18)"
                 }}
               >
                 {!isAgent && isFlagged ? (
@@ -89,7 +94,7 @@ export default function TranscriptPanel({ transcript }) {
                   </div>
                 ) : null}
                 <HighlightedText parts={item.parts} text={item.text} />
-                <div style={{ marginTop: 8, fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>
+                <div style={{ marginTop: 8, fontSize: 10, color: "rgba(228, 232, 241, 0.48)", textTransform: "uppercase" }}>
                   {item.speaker} {item.ts ? `· ${item.ts}` : ""}
                 </div>
               </div>
