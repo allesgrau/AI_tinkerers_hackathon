@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from voiceguard.config import load_settings
-from voiceguard.crypto.jwt_tokens import issue_token
+from voiceguard.crypto.jwt_tokens import issue_session_token
 from voiceguard.models import VerificationResult
 from voiceguard.risk import classify_voice_confidence
 from voiceguard.server.events import (
@@ -204,7 +204,7 @@ async def verify_voice(payload: VoicePayload) -> dict[str, Any]:
     # Check if fully authenticated
     if result.completed:
         session_obj = _sessions[sid]
-        token = issue_token(
+        token = issue_session_token(
             secret="voiceguard-demo-secret",
             session_id=sid,
             pesel=session_obj.pesel,

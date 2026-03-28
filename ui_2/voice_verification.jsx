@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import ConnectionStatus from "./components/ConnectionStatus";
 import StepProgress from "./components/StepProgress";
 import RiskIndicators from "./components/RiskIndicators";
@@ -9,6 +9,8 @@ import SessionSidebar from "./components/SessionSidebar";
 import { useVoiceGuard } from "./useVoiceGuard";
 
 export default function App() {
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [summaryVisible, setSummaryVisible] = useState(true);
   const {
     connectionStatus,
     transcript,
@@ -47,27 +49,36 @@ export default function App() {
         style={{
           height: "100vh",
           display: "grid",
-          gridTemplateColumns: "280px 1fr",
+          gridTemplateColumns: sidebarVisible ? "280px 1fr" : "1fr",
           background:
             "radial-gradient(circle at top left, rgba(56,189,248,0.08), rgba(6,11,20,0) 24%), linear-gradient(180deg, #060b14 0%, #09111f 100%)"
         }}
       >
-        <SessionSidebar
-          scenarios={availableScenarios}
-          currentScenario={currentScenario}
-          startScenario={startScenario}
-          connectionStatus={connectionStatus}
-          sessionComplete={sessionComplete}
-        />
+        {sidebarVisible ? (
+          <SessionSidebar
+            scenarios={availableScenarios}
+            currentScenario={currentScenario}
+            startScenario={startScenario}
+            connectionStatus={connectionStatus}
+            sessionComplete={sessionComplete}
+          />
+        ) : null}
 
-        <div style={{ display: "grid", gridTemplateRows: "72px auto 1fr 26px", minWidth: 0 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateRows: summaryVisible ? "72px auto 1fr 26px" : "72px 1fr 26px",
+            minWidth: 0
+          }}
+        >
           <header
             style={{
               borderBottom: "1px solid #172436",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              padding: "0 22px"
+              padding: "0 22px",
+              gap: 16
             }}
           >
             <div>
@@ -77,13 +88,29 @@ export default function App() {
               </div>
             </div>
 
-            <ConnectionStatus status={connectionStatus} />
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setSidebarVisible((value) => !value)}
+                style={toggleButtonStyle}
+              >
+                {sidebarVisible ? "Hide sidebar" : "Show sidebar"}
+              </button>
+              <button
+                onClick={() => setSummaryVisible((value) => !value)}
+                style={toggleButtonStyle}
+              >
+                {summaryVisible ? "Hide summary" : "Show summary"}
+              </button>
+              <ConnectionStatus status={connectionStatus} />
+            </div>
           </header>
 
-          <section style={{ padding: "18px 22px 14px", display: "grid", gap: 12 }}>
-            <RiskIndicators indicators={riskIndicators} />
-            <StepProgress steps={steps} />
-          </section>
+          {summaryVisible ? (
+            <section style={{ padding: "18px 22px 14px", display: "grid", gap: 12 }}>
+              <RiskIndicators indicators={riskIndicators} />
+              <StepProgress steps={steps} />
+            </section>
+          ) : null}
 
           <main
             style={{
@@ -124,3 +151,14 @@ export default function App() {
     </>
   );
 }
+
+const toggleButtonStyle = {
+  padding: "10px 14px",
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.03)",
+  color: "#dbe7f7",
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer"
+};

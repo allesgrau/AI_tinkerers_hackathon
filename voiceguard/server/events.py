@@ -10,6 +10,8 @@ from typing import Any
 
 from fastapi import WebSocket
 
+from voiceguard.crypto.audit_chain import append_stream_event
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,6 +69,12 @@ class EventBus:
         event_dict = event.to_dict()
         event_dict["session_id"] = session_id
         msg = json.dumps(event_dict, ensure_ascii=False)
+
+        # Stage 2 crypto: each emitted pipeline event is persisted in hash chain.
+        try:
+            append_stream_event(event_dict)
+        except Exception:
+            logger.exception("Failed to append event to audit chain")
 
         # Store in history for late-joining clients
         self._history.setdefault(session_id, []).append(event_dict)
