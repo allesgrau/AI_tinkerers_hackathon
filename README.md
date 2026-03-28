@@ -68,9 +68,15 @@ config = build_live_connect_config()
 For a voice-only terminal client with mic input, speaker output, and database tools:
 
 ```bash
-pip install pyaudio
-export GEMINI_API_KEY=your_key_here
+python3 -m pip install -r requirements.txt
 python3 scripts/run_voice_scheduler.py
+```
+
+The script loads `.env` automatically. At minimum, set:
+
+```env
+GEMINI_API_KEY=your_key_here
+GEMINI_LIVE_MODEL=models/gemini-3.1-flash-live-preview
 ```
 
 Type `q` in the terminal to stop the session.

@@ -8,6 +8,7 @@ import traceback
 from pathlib import Path
 
 import pyaudio
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
@@ -15,6 +16,8 @@ from google.genai import types
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+
+load_dotenv(ROOT_DIR / ".env")
 
 from agent.gemini_live_config import build_live_connect_config
 from agent.tool_registry import SchedulingAgentTools
@@ -36,8 +39,11 @@ class VoiceScheduler:
     def __init__(self, model: str, voice_name: str) -> None:
         self.model = model
         self.voice_name = voice_name
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY is not set. Add it to .env or export it in your shell.")
         self.client = genai.Client(
-            api_key=os.environ["GEMINI_API_KEY"],
+            api_key=api_key,
             http_options={"api_version": "v1beta"},
         )
         self.pya = pyaudio.PyAudio()
