@@ -17,6 +17,7 @@ SCENARIO_MODULES = {
     "brute_force": "voiceguard.demo.scenarios.brute_force",
     "replay_attack": "voiceguard.demo.scenarios.replay_attack",
 }
+SCENARIOS = SCENARIO_MODULES
 
 DEMO_SESSION_PREFIX = "demo"
 

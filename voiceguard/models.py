@@ -47,3 +47,11 @@ class SessionSnapshot(BaseModel):
     pesel: str
     steps: list[StepStatus]
     result: VerificationResult
+
+
+class RiskSnapshot(BaseModel):
+    voice_confidence: str | None = None
+    otp_timing: str | None = None
+    attempt_history: str | None = None
+    overall_risk: str = "low"
+    indicators: dict[str, Any] = Field(default_factory=dict)

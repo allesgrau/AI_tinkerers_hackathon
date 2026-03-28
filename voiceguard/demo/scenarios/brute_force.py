@@ -1,35 +1,29 @@
 """Brute force: attacker tries multiple OTP codes — rate limiting kicks in."""
 
 scenario = [
-    {"delay": 0.5, "type": "transcript.add", "speaker": "agent", "text": "Dzień dobry, tu VoiceGuard. Proszę podać numer PESEL."},
-
+    {"delay": 0.5, "type": "transcript.add", "speaker": "agent", "text": "Hello, this is VoiceGuard. Please provide your PESEL number."},
     {"delay": 1.5, "type": "transcript.add", "speaker": "user", "text": "99123145678."},
-
     {"delay": 0.3, "type": "step.update", "step": "pesel", "status": "in_progress"},
     {"delay": 0.2, "type": "reasoning.add", "text": "PESEL 9912****678 → DB lookup...", "level": "info"},
-    {"delay": 0.8, "type": "reasoning.add", "text": "Match: Piotr Wiśniewski → phone: +48 789***56", "level": "info"},
-    {"delay": 0.1, "type": "step.update", "step": "pesel", "status": "verified", "patient_name": "Piotr Wiśniewski"},
+    {"delay": 0.8, "type": "reasoning.add", "text": "Match: Peter Miller → phone: +1 202***0103", "level": "info"},
+    {"delay": 0.1, "type": "step.update", "step": "pesel", "status": "verified", "patient_name": "Peter Miller"},
     {"delay": 0.1, "type": "risk.update", "indicators": {"pesel_status": "verified"}},
-
-    {"delay": 0.5, "type": "transcript.add", "speaker": "agent", "text": "Wysyłam kod SMS."},
+    {"delay": 0.5, "type": "transcript.add", "speaker": "agent", "text": "I am sending a text message code now."},
     {"delay": 0.3, "type": "step.update", "step": "otp", "status": "sending"},
     {"delay": 0.2, "type": "reasoning.add", "text": "OTP generated: 6 digits, SHA-256 hashed before storage", "level": "info"},
     {"delay": 1.0, "type": "step.update", "step": "otp", "status": "sent"},
 
-    # Attempt 1 — wrong
     {"delay": 1.0, "type": "transcript.add", "speaker": "user", "text": "111111."},
     {"delay": 0.2, "type": "reasoning.add", "text": "OTP input: ****** → verifying hash...", "level": "info"},
     {"delay": 0.3, "type": "reasoning.add", "text": "OTP mismatch — attempt 1/3", "level": "warn"},
     {"delay": 0.1, "type": "risk.update", "indicators": {"otp_status": "failed", "otp_attempts": 1}},
 
-    # Attempt 2 — wrong, suspiciously fast
     {"delay": 0.8, "type": "transcript.add", "speaker": "user", "text": "222222."},
     {"delay": 0.2, "type": "reasoning.add", "text": "OTP input: ****** → verifying hash...", "level": "info"},
     {"delay": 0.3, "type": "reasoning.add", "text": "OTP mismatch — attempt 2/3", "level": "warn"},
     {"delay": 0.2, "type": "reasoning.add", "text": "WARNING: rapid retry detected (0.8s between attempts)", "level": "warn"},
     {"delay": 0.1, "type": "risk.update", "indicators": {"otp_status": "failed", "otp_attempts": 2, "otp_timing": "suspicious (0.8s)"}},
 
-    # Attempt 3 — wrong, lockout
     {"delay": 0.5, "type": "transcript.add", "speaker": "user", "text": "333333."},
     {"delay": 0.2, "type": "reasoning.add", "text": "OTP input: ****** → verifying hash...", "level": "info"},
     {"delay": 0.3, "type": "reasoning.add", "text": "OTP mismatch — attempt 3/3 — MAX ATTEMPTS REACHED", "level": "error"},
@@ -40,5 +34,5 @@ scenario = [
 
     {"delay": 0.3, "type": "session.complete", "token": None, "rejected": True, "reason": "OTP brute force — session locked after 3 failed attempts"},
 
-    {"delay": 0.5, "type": "transcript.add", "speaker": "agent", "text": "Przepraszam, przekroczono limit prób. Sesja została zablokowana ze względów bezpieczeństwa. Proszę skontaktować się z placówką osobiście."},
+    {"delay": 0.5, "type": "transcript.add", "speaker": "agent", "text": "I’m sorry, the attempt limit has been exceeded. This session has been locked for security reasons. Please contact the clinic in person."},
 ]

@@ -10,6 +10,8 @@ from voiceguard.exceptions import ConfigurationError
 class VerificationSecuritySettings(BaseModel):
     max_attempts: int = 3
     audit: str = "hash_chain"
+    jwt_secret: str = "voiceguard-demo-secret"
+    jwt_expiry_seconds: int = 900
 
 
 class VerificationVoiceSettings(BaseModel):
@@ -40,10 +42,16 @@ class UISettings(BaseModel):
     show_reasoning: bool = True
 
 
+class DemoSettings(BaseModel):
+    enabled: bool = False
+    default_scenario: str = "happy_path"
+
+
 class VoiceGuardSettings(BaseModel):
     verification: VerificationSettings = Field(default_factory=VerificationSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     ui: UISettings = Field(default_factory=UISettings)
+    demo: DemoSettings = Field(default_factory=DemoSettings)
 
 
 def load_settings(path: str | Path = "voiceguard.yml") -> VoiceGuardSettings:

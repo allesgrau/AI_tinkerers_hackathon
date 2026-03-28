@@ -16,8 +16,9 @@ from pydantic import BaseModel, Field
 
 from voiceguard.config import load_settings
 from voiceguard.crypto.jwt_tokens import issue_session_token
+from voiceguard.manager import SessionManager
 from voiceguard.models import VerificationResult
-from voiceguard.risk import classify_voice_confidence
+from voiceguard.risk import assess_risk, classify_voice_confidence
 from voiceguard.server.events import (
     event_bus,
     reasoning,
@@ -32,6 +33,7 @@ from voiceguard.session import VerificationSession
 logger = logging.getLogger(__name__)
 
 settings = load_settings()
+event_bus.set_db_path(settings.database.path)
 
 
 @asynccontextmanager
@@ -69,16 +71,13 @@ app.include_router(ws_router)
 
 # ── In-memory session store ──────────────────────────────────────────
 
-_sessions: dict[str, VerificationSession] = {}
+session_manager = SessionManager(settings)
 
 
 def _get_or_create_session(session_id: str, pesel: str = "") -> VerificationSession:
-    if session_id not in _sessions:
-        session = VerificationSession(pesel=pesel)
-        session.session_id = session_id
-        session.attach_event_bus(event_bus)
-        _sessions[session_id] = session
-    return _sessions[session_id]
+    session = session_manager.get_or_create(session_id, pesel)
+    session.attach_event_bus(event_bus)
+    return session
 
 
 # ── Pydantic payloads ───────────────────────────────────────────────
@@ -150,7 +149,7 @@ async def verify_pesel(payload: PeselPayload) -> dict[str, Any]:
 @app.post("/api/verify/otp/send")
 async def send_otp(payload: OtpSendPayload) -> dict[str, Any]:
     sid = payload.session_id
-    session = _sessions.get(sid)
+    session = session_manager.get(sid)
     if session is None:
         return {"ok": False, "message": "Session not found — verify PESEL first"}
 
@@ -169,22 +168,27 @@ async def send_otp(payload: OtpSendPayload) -> dict[str, Any]:
 @app.post("/api/verify/otp/verify")
 async def verify_otp(payload: OtpVerifyPayload) -> dict[str, Any]:
     sid = payload.session_id
-    session = _sessions.get(sid)
+    session = session_manager.get(sid)
     if session is None:
         return {"ok": False, "message": "Session not found"}
 
     event_bus.emit_sync(sid, reasoning(f"OTP input: {'*' * len(payload.code)} → verifying hash..."))
 
     ok = session.verify_otp(payload.code)
+    risk = assess_risk(
+        otp_timing_seconds=session.otp_timing_seconds(),
+        failed_attempts=session.otp_attempts,
+        extra_indicators={"otp_status": "verified" if ok else "failed"},
+    )
 
     if ok:
         event_bus.emit_sync(sid, step_update("otp", "verified"))
         event_bus.emit_sync(sid, reasoning("OTP hash match ✓"))
-        event_bus.emit_sync(sid, risk_update({"otp_status": "verified"}))
+        event_bus.emit_sync(sid, risk_update(risk.indicators))
     else:
         event_bus.emit_sync(sid, step_update("otp", "failed"))
         event_bus.emit_sync(sid, reasoning("OTP mismatch — wrong code entered", level="warn"))
-        event_bus.emit_sync(sid, risk_update({"otp_status": "failed"}))
+        event_bus.emit_sync(sid, risk_update(risk.indicators))
 
     return {"ok": ok, "session_id": sid}
 
@@ -194,7 +198,7 @@ async def verify_voice(payload: VoicePayload) -> dict[str, Any]:
     import base64
 
     sid = payload.session_id
-    session = _sessions.get(sid)
+    session = session_manager.get(sid)
     if session is None:
         return {"ok": False, "message": "Session not found"}
 
@@ -208,6 +212,13 @@ async def verify_voice(payload: VoicePayload) -> dict[str, Any]:
     score = result.voice_score or 0.0
     threshold = settings.verification.voice.threshold
     confidence = classify_voice_confidence(score, threshold)
+    risk = assess_risk(
+        voice_score=score,
+        voice_threshold=threshold,
+        otp_timing_seconds=session.otp_timing_seconds(),
+        failed_attempts=session.otp_attempts,
+        extra_indicators={"voice_status": "verified" if result.voice_verified else "failed"},
+    )
 
     if result.voice_verified:
         event_bus.emit_sync(sid, step_update("voice", "verified", score=score))
@@ -217,6 +228,7 @@ async def verify_voice(payload: VoicePayload) -> dict[str, Any]:
             "voice_status": "verified",
             "voice_score": score,
             "voice_confidence": confidence,
+            "overall_risk": risk.overall_risk,
         }))
     else:
         event_bus.emit_sync(sid, step_update("voice", "failed", score=score))
@@ -225,19 +237,24 @@ async def verify_voice(payload: VoicePayload) -> dict[str, Any]:
             "voice_status": "failed",
             "voice_score": score,
             "voice_confidence": confidence,
+            "overall_risk": risk.overall_risk,
         }))
 
     # Check if fully authenticated
     if result.completed:
-        session_obj = _sessions[sid]
+        session_obj = session_manager.get(sid)
+        assert session_obj is not None
         token = issue_session_token(
-            secret="voiceguard-demo-secret",
+            secret=settings.verification.security.jwt_secret,
             session_id=sid,
             pesel=session_obj.pesel,
             pesel_verified=result.pesel_verified,
             otp_verified=result.otp_verified,
             voice_verified=result.voice_verified,
             voice_score=score,
+            expiry_seconds=settings.verification.security.jwt_expiry_seconds,
+            db_path=settings.database.path,
+            risk_level=risk.overall_risk,
         )
         event_bus.emit_sync(sid, reasoning("ALL STEPS VERIFIED — issuing JWT token"))
         event_bus.emit_sync(sid, session_complete(token=token))
@@ -256,9 +273,16 @@ async def verify_voice(payload: VoicePayload) -> dict[str, Any]:
 @app.post("/api/verify/status")
 async def auth_status(payload: StatusPayload) -> dict[str, Any]:
     sid = payload.session_id
-    session = _sessions.get(sid)
+    session = session_manager.get(sid)
     if session is None:
         return {"ok": False, "message": "Session not found"}
+
+    risk = assess_risk(
+        voice_score=session.result.voice_score,
+        voice_threshold=settings.verification.voice.threshold,
+        otp_timing_seconds=session.otp_timing_seconds(),
+        failed_attempts=session.otp_attempts,
+    )
 
     return {
         "ok": True,
@@ -268,6 +292,8 @@ async def auth_status(payload: StatusPayload) -> dict[str, Any]:
         "voice_verified": session.result.voice_verified,
         "voice_score": session.result.voice_score,
         "completed": session.result.completed,
+        "otp_attempts": session.otp_attempts,
+        "risk": risk.model_dump(),
     }
 
 
@@ -276,13 +302,16 @@ async def list_sessions() -> dict[str, Any]:
     return {
         "sessions": [
             {
-                "session_id": sid,
+                "session_id": session.session_id,
+                "pesel": session.pesel,
                 "pesel_verified": s.result.pesel_verified,
                 "otp_verified": s.result.otp_verified,
                 "voice_verified": s.result.voice_verified,
                 "completed": s.result.completed,
+                "otp_attempts": s.otp_attempts,
             }
-            for sid, s in _sessions.items()
+            for s in session_manager.list()
+            for session in [s]
         ]
     }
 
@@ -327,9 +356,9 @@ async def play_demo(payload: DemoPayload) -> dict[str, Any]:
 
 @app.get("/api/demo/scenarios")
 async def list_scenarios() -> dict[str, Any]:
-    from voiceguard.demo.runner import SCENARIOS
+    from voiceguard.demo.runner import available_scenarios
 
-    return {"scenarios": list(SCENARIOS.keys())}
+    return {"scenarios": available_scenarios()}
 
 
 # ── Serve built UI (if available) ───────────────────────────────────

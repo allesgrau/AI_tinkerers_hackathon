@@ -6,10 +6,18 @@ verification:
     min_audio_seconds: 3
   otp:
     provider: mock
+    length: 6
     expiry_seconds: 300
   security:
     max_attempts: 3
     audit: hash_chain
+    jwt_secret: voiceguard-demo-secret
+    jwt_expiry_seconds: 900
+database:
+  path: hospital_agent.db
+demo:
+  enabled: false
+  default_scenario: happy_path
 ui:
   theme: dark
   show_reasoning: true

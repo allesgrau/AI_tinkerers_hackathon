@@ -88,5 +88,19 @@ def audit_verify(session_id: str, db: str) -> None:
         raise SystemExit(1)
 
 
+@audit.command("export")
+@click.argument("session_id")
+@click.option("--db", default="hospital_agent.db", help="Database path")
+@click.option("--format", "output_format", default="json", type=click.Choice(["json"]))
+def audit_export(session_id: str, db: str, output_format: str) -> None:
+    """Export the hash-linked audit chain for a session."""
+    from voiceguard.crypto.audit_chain import export_chain_json
+
+    if output_format != "json":
+        raise SystemExit("Only JSON export is supported.")
+
+    click.echo_json(export_chain_json(session_id, db_path=db))
+
+
 if __name__ == "__main__":
     main()

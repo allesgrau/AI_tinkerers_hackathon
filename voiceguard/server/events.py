@@ -45,6 +45,41 @@ class EventBus:
         self._global_subscribers: set[WebSocket] = set()
         self._lock = asyncio.Lock()
         self._history: dict[str, list[dict[str, Any]]] = {}
+        self._db_path = "hospital_agent.db"
+
+    def set_db_path(self, db_path: str) -> None:
+        self._db_path = db_path
+
+    def _record_event(self, session_id: str, event: Event) -> tuple[dict[str, Any], str]:
+        event_dict = event.to_dict()
+        event_dict["session_id"] = session_id
+        msg = json.dumps(event_dict, ensure_ascii=False)
+
+        try:
+            append_stream_event(event_dict, db_path=self._db_path)
+        except Exception:
+            logger.exception("Failed to append event to audit chain")
+
+        self._history.setdefault(session_id, []).append(event_dict)
+        return event_dict, msg
+
+    async def _broadcast(self, session_id: str, msg: str) -> None:
+        targets: list[WebSocket] = []
+        async with self._lock:
+            targets.extend(self._global_subscribers)
+            if session_id in self._subscribers:
+                targets.extend(self._subscribers[session_id])
+
+        stale: list[tuple[WebSocket, str]] = []
+        for ws in targets:
+            try:
+                await ws.send_text(msg)
+            except Exception:
+                stale.append((ws, session_id))
+
+        for ws, sid in stale:
+            await self.unsubscribe(ws, sid)
+            await self.unsubscribe(ws, "*")
 
     async def subscribe(self, ws: WebSocket, session_id: str = "*") -> None:
         async with self._lock:
@@ -66,41 +101,15 @@ class EventBus:
 
     async def emit(self, session_id: str, event: Event) -> None:
         """Broadcast an event to all subscribers for this session + global."""
-        event_dict = event.to_dict()
-        event_dict["session_id"] = session_id
-        msg = json.dumps(event_dict, ensure_ascii=False)
-
-        # Stage 2 crypto: each emitted pipeline event is persisted in hash chain.
-        try:
-            append_stream_event(event_dict)
-        except Exception:
-            logger.exception("Failed to append event to audit chain")
-
-        # Store in history for late-joining clients
-        self._history.setdefault(session_id, []).append(event_dict)
-
-        targets: list[WebSocket] = []
-        async with self._lock:
-            targets.extend(self._global_subscribers)
-            if session_id in self._subscribers:
-                targets.extend(self._subscribers[session_id])
-
-        stale: list[tuple[WebSocket, str]] = []
-        for ws in targets:
-            try:
-                await ws.send_text(msg)
-            except Exception:
-                stale.append((ws, session_id))
-
-        for ws, sid in stale:
-            await self.unsubscribe(ws, sid)
-            await self.unsubscribe(ws, "*")
+        _, msg = self._record_event(session_id, event)
+        await self._broadcast(session_id, msg)
 
     def emit_sync(self, session_id: str, event: Event) -> None:
-        """Fire-and-forget from synchronous code (e.g. VerificationSession)."""
+        """Record immediately, then fire-and-forget WebSocket broadcast when possible."""
+        _, msg = self._record_event(session_id, event)
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(self.emit(session_id, event))
+            loop.create_task(self._broadcast(session_id, msg))
         except RuntimeError:
             logger.debug("No event loop; dropping event %s", event.type)
 

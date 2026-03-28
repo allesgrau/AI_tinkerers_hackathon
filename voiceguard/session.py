@@ -50,6 +50,9 @@ class VerificationSession:
         self.patient = None
         self._otp_hash: str | None = None
         self._event_bus: EventBus | None = None
+        self.otp_sent_at: datetime | None = None
+        self.last_otp_attempt_at: datetime | None = None
+        self.otp_attempts: int = 0
         self._steps: dict[str, StepStatus] = {
             "pesel": StepStatus(step="pesel"),
             "otp": StepStatus(step="otp"),
@@ -129,6 +132,9 @@ class VerificationSession:
 
         code = self.otp_service.issue_code()
         self._otp_hash = self.otp_service.store_hash(code)
+        self.otp_sent_at = datetime.utcnow()
+        self.last_otp_attempt_at = None
+        self.otp_attempts = 0
         if self.otp_sender is not None:
             self.otp_sender.send_code(self.patient.phone_number, code)
 
@@ -148,9 +154,16 @@ class VerificationSession:
             self._emit("otp", "failed", {"reason": "otp_not_generated"}, level="warn")
             return False
 
+        self.last_otp_attempt_at = datetime.utcnow()
         ok = self.otp_service.verify_code(code, self._otp_hash)
+        if not ok:
+            self.otp_attempts += 1
         self.result.otp_verified = ok
-        self._emit("otp", "verified" if ok else "failed")
+        self._emit(
+            "otp",
+            "verified" if ok else "failed",
+            {} if ok else {"attempts": self.otp_attempts},
+        )
         return ok
 
     def verify_voice(self, audio_bytes: bytes) -> VerificationResult:
@@ -162,3 +175,8 @@ class VerificationSession:
             self.result.pesel_verified and self.result.otp_verified and self.result.voice_verified
         )
         return self.result
+
+    def otp_timing_seconds(self) -> float | None:
+        if self.otp_sent_at is None or self.last_otp_attempt_at is None:
+            return None
+        return max(0.0, (self.last_otp_attempt_at - self.otp_sent_at).total_seconds())
