@@ -1,0 +1,15 @@
+verification:
+  steps: [pesel, otp, voice]
+  voice:
+    model: ecapa-tdnn
+    threshold: 0.72
+    min_audio_seconds: 3
+  otp:
+    provider: mock
+    expiry_seconds: 300
+  security:
+    max_attempts: 3
+    audit: hash_chain
+ui:
+  theme: dark
+  show_reasoning: true

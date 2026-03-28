@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voiceguard"
+version = "0.1.0"
+description = "VoiceGuard verification package"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0",
+    "PyYAML>=6.0",
+    "fastapi>=0.110",
+    "PyJWT>=2.8",
+    "click>=8.1",
+]
+
+[project.scripts]
+voiceguard = "voiceguard.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["voiceguard*"]
