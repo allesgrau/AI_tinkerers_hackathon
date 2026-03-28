@@ -27,10 +27,22 @@ def apply_schema(connection: sqlite3.Connection) -> None:
     connection.executescript(schema)
 
 
+def ensure_schema_compatibility(connection: sqlite3.Connection) -> None:
+    # Lightweight migration for databases created before voice-auth fields existed.
+    patient_columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(patients)").fetchall()
+    }
+    if "enrolled_voice_sample" not in patient_columns:
+        connection.execute(
+            "ALTER TABLE patients ADD COLUMN enrolled_voice_sample TEXT"
+        )
+
+
 def seed_patients(connection: sqlite3.Connection) -> None:
     connection.executemany(
         """
-        INSERT OR REPLACE INTO patients (
+        INSERT INTO patients (
             pesel,
             full_name,
             phone_number,
@@ -44,6 +56,11 @@ def seed_patients(connection: sqlite3.Connection) -> None:
             :enrolled_voice_sample,
             :verification_zip
         )
+        ON CONFLICT(pesel) DO UPDATE SET
+            full_name = excluded.full_name,
+            phone_number = excluded.phone_number,
+            enrolled_voice_sample = excluded.enrolled_voice_sample,
+            verification_zip = excluded.verification_zip
         """,
         PATIENTS,
     )
@@ -117,6 +134,7 @@ def main() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with create_connection() as connection:
         apply_schema(connection)
+        ensure_schema_compatibility(connection)
         seed_patients(connection)
         seed_doctors(connection)
         seed_appointments(connection)

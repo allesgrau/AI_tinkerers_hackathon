@@ -31,7 +31,14 @@ class SmsService:
             )
             return
 
-        from twilio.rest import Client
+        try:
+            from twilio.rest import Client  # type: ignore[import-not-found]
+        except Exception:
+            logger.warning(
+                "Twilio SDK is not installed. Falling back to mock SMS provider. "
+                "Install it with: pip install twilio"
+            )
+            return
 
         self._client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
 

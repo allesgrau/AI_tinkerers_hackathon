@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.main import app
-from scripts.setup_database import main as setup_database
-
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT_DIR / "hospital_agent.db"
+
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from app.main import app
+from scripts.setup_database import main as setup_database
 
 
 def _get_sms_code(call_id: str) -> str:
