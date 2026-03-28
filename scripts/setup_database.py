@@ -27,16 +27,69 @@ def apply_schema(connection: sqlite3.Connection) -> None:
     connection.executescript(schema)
 
 
+def _table_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
+    return {
+        row["name"]
+        for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
+
+
 def ensure_schema_compatibility(connection: sqlite3.Connection) -> None:
     # Lightweight migration for databases created before voice-auth fields existed.
-    patient_columns = {
+    existing_tables = {
         row["name"]
-        for row in connection.execute("PRAGMA table_info(patients)").fetchall()
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
     }
-    if "enrolled_voice_sample" not in patient_columns:
+
+    if "patients" in existing_tables:
+        patient_columns = _table_columns(connection, "patients")
+    else:
+        patient_columns = set()
+    if patient_columns and "enrolled_voice_sample" not in patient_columns:
         connection.execute(
             "ALTER TABLE patients ADD COLUMN enrolled_voice_sample TEXT"
         )
+
+    if "voiceprints" in existing_tables:
+        voiceprint_columns = _table_columns(connection, "voiceprints")
+        if "embedding_json" not in voiceprint_columns:
+            connection.execute("ALTER TABLE voiceprints ADD COLUMN embedding_json TEXT")
+        if "model_name" not in voiceprint_columns:
+            connection.execute("ALTER TABLE voiceprints ADD COLUMN model_name TEXT")
+
+    if "auth_sessions" in existing_tables:
+        auth_session_columns = _table_columns(connection, "auth_sessions")
+        if "call_id" not in auth_session_columns:
+            connection.execute("ALTER TABLE auth_sessions ADD COLUMN call_id TEXT")
+        if "sms_code" not in auth_session_columns:
+            connection.execute("ALTER TABLE auth_sessions ADD COLUMN sms_code TEXT")
+        if "sms_sent_at" not in auth_session_columns:
+            connection.execute("ALTER TABLE auth_sessions ADD COLUMN sms_sent_at TIMESTAMP")
+        if "updated_at" not in auth_session_columns:
+            connection.execute("ALTER TABLE auth_sessions ADD COLUMN updated_at TIMESTAMP")
+        if "voice_verification_status" not in auth_session_columns:
+            connection.execute(
+                "ALTER TABLE auth_sessions ADD COLUMN voice_verification_status TEXT DEFAULT 'pending'"
+            )
+        if "voice_similarity_score" not in auth_session_columns:
+            connection.execute(
+                "ALTER TABLE auth_sessions ADD COLUMN voice_similarity_score REAL"
+            )
+
+    if "auth_events" in existing_tables:
+        auth_event_columns = _table_columns(connection, "auth_events")
+        if "call_id" not in auth_event_columns:
+            connection.execute("ALTER TABLE auth_events ADD COLUMN call_id TEXT")
+
+
+def reset_demo_schedule(connection: sqlite3.Connection) -> None:
+    connection.execute("DELETE FROM appointments")
+    connection.execute("DELETE FROM doctors")
+    connection.execute(
+        "DELETE FROM sqlite_sequence WHERE name IN ('appointments', 'doctors')"
+    )
 
 
 def seed_patients(connection: sqlite3.Connection) -> None:
@@ -133,8 +186,9 @@ def print_summary(connection: sqlite3.Connection) -> None:
 def main() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with create_connection() as connection:
-        apply_schema(connection)
         ensure_schema_compatibility(connection)
+        apply_schema(connection)
+        reset_demo_schedule(connection)
         seed_patients(connection)
         seed_doctors(connection)
         seed_appointments(connection)

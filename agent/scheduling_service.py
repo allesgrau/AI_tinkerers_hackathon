@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -16,6 +17,39 @@ class DoctorAvailability:
 
 
 class SchedulingService:
+    @staticmethod
+    def _normalize_text(value: str | None) -> str:
+        if not value:
+            return ""
+        normalized = value.casefold().strip()
+        normalized = re.sub(r"^dr\.?\s+", "", normalized)
+        normalized = re.sub(r"\s+", " ", normalized)
+        return normalized
+
+    def _resolve_doctor(self, connection, doctor_name: str):
+        requested = self._normalize_text(doctor_name)
+        if not requested:
+            return None
+
+        rows = connection.execute(
+            "SELECT doctor_id, full_name, specialty FROM doctors ORDER BY doctor_id"
+        ).fetchall()
+
+        exact_matches = []
+        partial_matches = []
+        for row in rows:
+            full_name = self._normalize_text(row["full_name"])
+            if full_name == requested:
+                exact_matches.append(row)
+            elif requested in full_name:
+                partial_matches.append(row)
+
+        if exact_matches:
+            return exact_matches[0]
+        if len(partial_matches) == 1:
+            return partial_matches[0]
+        return None
+
     def verify_patient(
         self,
         pesel: str,
@@ -35,10 +69,10 @@ class SchedulingService:
         if row is None:
             return {"verified": False, "reason": "Patient not found."}
 
-        if row["verification_zip"] != verification_zip:
+        if self._normalize_text(row["verification_zip"]) != self._normalize_text(verification_zip):
             return {"verified": False, "reason": "ZIP code does not match our records."}
 
-        if full_name and row["full_name"].casefold() != full_name.casefold():
+        if full_name and self._normalize_text(row["full_name"]) != self._normalize_text(full_name):
             return {"verified": False, "reason": "Full name does not match our records."}
 
         return {
@@ -57,21 +91,24 @@ class SchedulingService:
         doctor_name: str | None = None,
         limit: int = 5,
     ) -> dict[str, Any]:
-        filters = ["a.status = 'Available'"]
-        params: list[Any] = []
-
-        if specialty:
-            filters.append("d.specialty = ?")
-            params.append(specialty)
-
-        if doctor_name:
-            filters.append("d.full_name = ?")
-            params.append(doctor_name)
-
-        params.append(limit)
-        where_clause = " AND ".join(filters)
-
         with create_connection() as connection:
+            filters = ["a.status = 'Available'"]
+            params: list[Any] = []
+
+            if specialty:
+                filters.append("LOWER(d.specialty) = LOWER(?)")
+                params.append(specialty.strip())
+
+            if doctor_name:
+                doctor = self._resolve_doctor(connection, doctor_name)
+                if doctor is None:
+                    return {"matches": [], "count": 0, "reason": "Doctor not found."}
+                filters.append("d.doctor_id = ?")
+                params.append(doctor["doctor_id"])
+
+            params.append(limit)
+            where_clause = " AND ".join(filters)
+
             rows = connection.execute(
                 f"""
                 SELECT
@@ -106,10 +143,7 @@ class SchedulingService:
             if patient is None:
                 return {"success": False, "reason": "Patient not found."}
 
-            doctor = connection.execute(
-                "SELECT doctor_id, full_name, specialty FROM doctors WHERE full_name = ?",
-                (doctor_name,),
-            ).fetchone()
+            doctor = self._resolve_doctor(connection, doctor_name)
             if doctor is None:
                 return {"success": False, "reason": "Doctor not found."}
 
