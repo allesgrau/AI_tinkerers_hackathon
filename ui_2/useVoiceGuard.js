@@ -8,8 +8,9 @@ const initialSteps = {
 
 export function useVoiceGuard() {
   const socketRef = useRef(null);
-  const autoStartedRef = useRef(false);
   const [connectionStatus, setConnectionStatus] = useState("connecting");
+  const [mode, setMode] = useState("live");
+  const [activeSessionId, setActiveSessionId] = useState("");
   const [transcript, setTranscript] = useState([]);
   const [reasoning, setReasoning] = useState([]);
   const [steps, setSteps] = useState(initialSteps);
@@ -23,6 +24,72 @@ export function useVoiceGuard() {
   const [currentScenario, setCurrentScenario] = useState("happy_path");
   const [sessionComplete, setSessionComplete] = useState(null);
 
+  const resetDashboard = () => {
+    setTranscript([]);
+    setReasoning([]);
+    setSteps(initialSteps);
+    setRiskIndicators({
+      voice_confidence: null,
+      otp_timing: "unknown",
+      attempt_history: 0,
+      overall_risk: "unknown"
+    });
+    setSessionComplete(null);
+  };
+
+  const replayEvents = (events) => {
+    const nextTranscript = [];
+    const nextReasoning = [];
+    const nextSteps = { ...initialSteps };
+    let nextRiskIndicators = {
+      voice_confidence: null,
+      otp_timing: "unknown",
+      attempt_history: 0,
+      overall_risk: "unknown"
+    };
+    let nextSessionComplete = null;
+
+    (events || []).forEach((event) => {
+      if (event.type === "transcript.add") {
+        nextTranscript.push(normalizeTranscriptEvent(event));
+      }
+      if (event.type === "reasoning.add") {
+        nextReasoning.push(event);
+      }
+      if (event.type === "step.update" && event.step) {
+        nextSteps[event.step] = normalizeStepStatus(event.status);
+      }
+      if (event.type === "risk.update") {
+        nextRiskIndicators = normalizeRiskIndicators({
+          ...nextRiskIndicators,
+          ...event.indicators
+        });
+      }
+      if (event.type === "session.complete") {
+        nextSessionComplete = normalizeSessionComplete(event);
+      }
+    });
+
+    setTranscript(nextTranscript);
+    setReasoning(nextReasoning);
+    setSteps(nextSteps);
+    setRiskIndicators(nextRiskIndicators);
+    setSessionComplete(nextSessionComplete);
+  };
+
+  const subscribeToSession = (sessionId, nextMode = "live") => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    setMode(nextMode);
+    setActiveSessionId(sessionId);
+    resetDashboard();
+    socket.send(JSON.stringify({ action: "subscribe", session_id: sessionId }));
+    socket.send(JSON.stringify({ action: "history", session_id: sessionId }));
+  };
+
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${protocol}://${window.location.hostname}:8000/ws`);
@@ -31,7 +98,6 @@ export function useVoiceGuard() {
     socket.onopen = () => {
       setConnectionStatus("connected");
       socket.send(JSON.stringify({ action: "subscribe", session_id: "*" }));
-      socket.send(JSON.stringify({ action: "history", session_id: "*" }));
     };
 
     socket.onclose = () => {
@@ -51,46 +117,22 @@ export function useVoiceGuard() {
           break;
         case "subscribed":
           setConnectionStatus("connected");
+          if (payload.session_id) {
+            setActiveSessionId(payload.session_id);
+          }
           break;
         case "scenario.list":
           setScenarios(payload.items || []);
-          if (!autoStartedRef.current && (payload.items || []).includes("happy_path")) {
-            autoStartedRef.current = true;
-            startScenario("happy_path");
-          }
           break;
         case "history":
-          setTranscript([]);
-          setReasoning([]);
-          (payload.events || []).forEach((event) => {
-            if (event.type === "transcript.add") {
-              setTranscript((items) => [...items, normalizeTranscriptEvent(event)]);
-            }
-            if (event.type === "reasoning.add") {
-              setReasoning((items) => [...items, event]);
-            }
-            if (event.type === "step.update") {
-              setSteps((prev) => ({ ...prev, [event.step]: event.status }));
-            }
-            if (event.type === "risk.update") {
-              setRiskIndicators((prev) => normalizeRiskIndicators({ ...prev, ...event.indicators }));
-            }
-            if (event.type === "session.complete") {
-              setSessionComplete(normalizeSessionComplete(event));
-            }
-          });
+          if (payload.session_id) {
+            setActiveSessionId(payload.session_id);
+          }
+          replayEvents(payload.events || []);
           break;
         case "session.reset":
-          setTranscript([]);
-          setReasoning([]);
-          setSteps(initialSteps);
-          setRiskIndicators({
-            voice_confidence: null,
-            otp_timing: "unknown",
-            attempt_history: 0,
-            overall_risk: "unknown"
-          });
-          setSessionComplete(null);
+          resetDashboard();
+          setMode("demo");
           setCurrentScenario(payload.scenario || "happy_path");
           break;
         case "transcript.add":
@@ -100,7 +142,10 @@ export function useVoiceGuard() {
           setReasoning((items) => [...items, payload]);
           break;
         case "step.update":
-          setSteps((prev) => ({ ...prev, [payload.step]: payload.status }));
+          setSteps((prev) => ({
+            ...prev,
+            [payload.step]: normalizeStepStatus(payload.status)
+          }));
           break;
         case "risk.update":
           setRiskIndicators((prev) =>
@@ -122,12 +167,23 @@ export function useVoiceGuard() {
 
   const startScenario = (scenario) => {
     setCurrentScenario(scenario);
+    setMode("demo");
+    setActiveSessionId(`demo-${scenario}`);
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: "scenario.start", scenario }));
     }
   };
 
+  const subscribeToLiveSession = (sessionId) => {
+    if (!sessionId) {
+      return;
+    }
+    subscribeToSession(sessionId, "live");
+  };
+
   return {
+    mode,
+    activeSessionId,
     connectionStatus,
     transcript,
     reasoning,
@@ -137,8 +193,21 @@ export function useVoiceGuard() {
     currentScenario,
     sessionComplete,
     setSessionComplete,
-    startScenario
+    startScenario,
+    subscribeToLiveSession
   };
+}
+
+function normalizeStepStatus(status) {
+  if (!status) {
+    return "idle";
+  }
+
+  if (status === "in_progress") {
+    return "in_progress";
+  }
+
+  return status;
 }
 
 function normalizeTranscriptEvent(event) {

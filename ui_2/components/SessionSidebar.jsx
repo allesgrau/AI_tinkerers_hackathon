@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 const statusConfig = {
   verified: { color: "#22c55e", label: "Verified" },
@@ -9,17 +9,22 @@ const statusConfig = {
 };
 
 export default function SessionSidebar({
+  mode,
+  activeSessionId,
   scenarios,
   currentScenario,
   startScenario,
+  subscribeToLiveSession,
   connectionStatus,
   sessionComplete
 }) {
+  const [sessionInput, setSessionInput] = useState("");
   const status =
     sessionComplete?.result && statusConfig[sessionComplete.result]
       ? statusConfig[sessionComplete.result]
       : statusConfig.active;
-  const modeLabel = currentScenario.replaceAll("_", " ");
+  const modeLabel =
+    mode === "live" ? `live · ${activeSessionId || "not connected"}` : currentScenario.replaceAll("_", " ");
 
   return (
     <aside
@@ -73,6 +78,59 @@ export default function SessionSidebar({
           <div style={{ color: "#94a3b8", fontSize: 12, lineHeight: 1.5, marginTop: 4 }}>
             Mode: <span style={{ color: "#e5edf8" }}>{modeLabel}</span>
           </div>
+        </div>
+      </div>
+
+      <div style={{ padding: 16, borderBottom: "1px solid #172436" }}>
+        <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>
+          Live session
+        </div>
+        <div
+          style={{
+            padding: 14,
+            borderRadius: 18,
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.07)"
+          }}
+        >
+          <div style={{ color: "#94a3b8", fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>
+            Connect the dashboard to a real `session_id` from the backend verification flow.
+          </div>
+          <input
+            value={sessionInput}
+            onChange={(event) => setSessionInput(event.target.value)}
+            placeholder="session_id"
+            style={{
+              width: "100%",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "#0b1220",
+              color: "#e5edf8",
+              padding: "11px 12px",
+              fontSize: 12,
+              marginBottom: 10
+            }}
+          />
+          <button
+            onClick={() => subscribeToLiveSession(sessionInput.trim())}
+            style={{
+              width: "100%",
+              padding: "11px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(56,189,248,0.28)",
+              background: "rgba(14,116,144,0.16)",
+              color: "#dbeafe",
+              fontWeight: 600,
+              cursor: "pointer"
+            }}
+          >
+            Watch live session
+          </button>
+          {activeSessionId && mode === "live" ? (
+            <div style={{ color: "#94a3b8", fontSize: 11, lineHeight: 1.5, marginTop: 10 }}>
+              Active session: <span style={{ color: "#e5edf8" }}>{activeSessionId}</span>
+            </div>
+          ) : null}
         </div>
       </div>
 

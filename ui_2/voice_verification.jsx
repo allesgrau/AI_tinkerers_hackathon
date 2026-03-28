@@ -12,6 +12,8 @@ export default function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [summaryVisible, setSummaryVisible] = useState(true);
   const {
+    mode,
+    activeSessionId,
     connectionStatus,
     transcript,
     reasoning,
@@ -21,7 +23,8 @@ export default function App() {
     currentScenario,
     sessionComplete,
     setSessionComplete,
-    startScenario
+    startScenario,
+    subscribeToLiveSession
   } = useVoiceGuard();
 
   const availableScenarios =
@@ -56,9 +59,12 @@ export default function App() {
       >
         {sidebarVisible ? (
           <SessionSidebar
+            mode={mode}
+            activeSessionId={activeSessionId}
             scenarios={availableScenarios}
             currentScenario={currentScenario}
             startScenario={startScenario}
+            subscribeToLiveSession={subscribeToLiveSession}
             connectionStatus={connectionStatus}
             sessionComplete={sessionComplete}
           />
@@ -84,7 +90,9 @@ export default function App() {
             <div>
               <div style={{ fontSize: 22, fontWeight: 700 }}>Operational Dashboard</div>
               <div style={{ color: "#64748b", fontSize: 12 }}>
-                Transcript, reasoning stream, and risk monitoring
+                {activeSessionId
+                  ? `Session ${activeSessionId} · ${mode === "live" ? "live stream" : "demo stream"}`
+                  : "Transcript, reasoning stream, and risk monitoring"}
               </div>
             </div>
 

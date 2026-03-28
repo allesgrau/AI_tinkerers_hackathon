@@ -12,16 +12,44 @@ function RiskCard({ card }) {
         padding: 14,
         borderRadius: 18,
         background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        transition: "transform 180ms ease, border-color 180ms ease",
+        border: `1px solid ${hovered ? `${card.color}55` : "rgba(255,255,255,0.07)"}`,
+        transition: "transform 180ms ease, border-color 180ms ease, box-shadow 220ms ease",
         transform: hovered ? "translateY(-1px)" : "translateY(0)",
-        borderColor: hovered ? `${card.color}55` : "rgba(255,255,255,0.07)"
+        boxShadow: card.emphasis ? `0 0 24px ${card.color}22` : "none"
       }}
     >
-      <div style={{ fontSize: 10, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
-        {card.label}
+      <style>{`
+        @keyframes riskPulse {
+          0% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+          50% { transform: scale(1.03); box-shadow: 0 0 0 8px transparent; }
+          100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+        }
+      `}</style>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div
+          style={{
+            width: 58,
+            height: 58,
+            borderRadius: "50%",
+            display: "grid",
+            placeItems: "center",
+            border: `2px solid ${card.color}`,
+            color: card.color,
+            fontSize: 14,
+            fontWeight: 700,
+            background: `${card.color}10`,
+            animation: card.emphasis ? "riskPulse 1.4s ease-in-out infinite" : "none"
+          }}
+        >
+          {card.badge}
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>
+            {card.label}
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: card.color }}>{card.value}</div>
+        </div>
       </div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: card.color }}>{card.value}</div>
       {hovered ? (
         <div
           style={{
@@ -58,6 +86,10 @@ export default function RiskIndicators({ indicators }) {
     {
       label: "Voice confidence",
       value: voiceValue,
+      badge:
+        indicators.voice_confidence === null
+          ? "--"
+          : `${Math.round(indicators.voice_confidence * 100)}`,
       color:
         indicators.voice_confidence === null
           ? "#94a3b8"
@@ -66,28 +98,41 @@ export default function RiskIndicators({ indicators }) {
             : indicators.voice_confidence >= 0.72
               ? "#f59e0b"
               : "#ef4444",
-      help: "Compares the live speaker embedding against the enrolled voiceprint."
+      help: "Compares the live speaker embedding against the enrolled voiceprint.",
+      emphasis: indicators.voice_confidence !== null
     },
     {
       label: "OTP timing",
       value: otpTimingValue,
+      badge: otpTimingValue === "normal" ? "OK" : otpTimingValue === "unknown" ? "--" : "!",
       color:
         otpTimingValue === "normal"
           ? "#22c55e"
           : otpTimingValue === "suspicious" || otpTimingValue === "abnormal"
             ? "#ef4444"
             : "#f59e0b",
-      help: "Flags suspiciously fast or slow OTP confirmation behavior."
+      help: "Flags suspiciously fast or slow OTP confirmation behavior.",
+      emphasis: otpTimingValue !== "unknown"
     },
     {
       label: "Attempts",
       value: String(indicators.attempt_history),
+      badge: String(indicators.attempt_history),
       color: indicators.attempt_history > 2 ? "#ef4444" : "#22c55e",
-      help: "Tracks repeated failures across the verification flow."
+      help: "Tracks repeated failures across the verification flow.",
+      emphasis: indicators.attempt_history > 0
     },
     {
       label: "Overall risk",
       value: overallRiskValue,
+      badge:
+        overallRiskValue === "low"
+          ? "L"
+          : overallRiskValue === "medium"
+            ? "M"
+            : overallRiskValue === "high"
+              ? "H"
+              : "--",
       color:
         overallRiskValue === "low"
           ? "#22c55e"
@@ -96,7 +141,8 @@ export default function RiskIndicators({ indicators }) {
             : overallRiskValue === "high"
               ? "#ef4444"
               : "#94a3b8",
-      help: "Combined risk score based on voice, OTP timing, and attempt history."
+      help: "Combined risk score based on voice, OTP timing, and attempt history.",
+      emphasis: overallRiskValue !== "unknown"
     }
   ];
 
