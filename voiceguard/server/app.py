@@ -27,6 +27,7 @@ from voiceguard.server.events import (
     step_update,
     transcript,
 )
+from voiceguard.server.twilio_router import router as twilio_router
 from voiceguard.server.ws import router as ws_router
 from voiceguard.session import VerificationSession
 
@@ -68,6 +69,7 @@ app.add_middleware(
 )
 
 app.include_router(ws_router)
+app.include_router(twilio_router)
 
 # ── In-memory session store ──────────────────────────────────────────
 
