@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import ConnectionStatus from "./components/ConnectionStatus";
 import ReasoningPanel from "./components/ReasoningPanel";
-import SessionOverlay from "./components/SessionOverlay";
 import SessionSidebar from "./components/SessionSidebar";
 import ToolActivityPanel from "./components/ToolActivityPanel";
 import TranscriptPanel from "./components/TranscriptPanel";
+import VoiceActivityPanel from "./components/VoiceActivityPanel";
 import { useVoiceGuard } from "./useVoiceGuard";
 
 export default function App() {
@@ -14,6 +14,7 @@ export default function App() {
     mode,
     activeSessionId,
     availableSessions,
+    agentSpeaking,
     connectionStatus,
     transcript,
     toolActivity,
@@ -22,7 +23,6 @@ export default function App() {
     currentScenario,
     sessionComplete,
     callDetails,
-    setSessionComplete,
     startScenario,
     subscribeToLiveSession,
     refreshSessions
@@ -33,14 +33,18 @@ export default function App() {
       ? scenarios
       : ["happy_path", "wrong_voice", "brute_force", "replay_attack"];
 
+  const resolvedCallStatus = sessionComplete?.result || callDetails.status || "idle";
+  const resolvedCaller =
+    sessionComplete?.reason || callDetails.from_number || "Waiting for Twilio";
+
   const summaryCards = [
     {
       label: "Call status",
-      value: prettifyValue(callDetails.status || "idle")
+      value: prettifyValue(resolvedCallStatus)
     },
     {
-      label: "Caller",
-      value: callDetails.from_number || "Waiting for Twilio"
+      label: sessionComplete ? "Outcome" : "Caller",
+      value: resolvedCaller
     },
     {
       label: "Model",
@@ -62,7 +66,8 @@ export default function App() {
         html, body, #root { height: 100%; }
         body {
           background:
-            radial-gradient(circle at top, rgba(139, 245, 178, 0.12), rgba(5, 7, 13, 0) 24%),
+            radial-gradient(circle at top, rgba(100, 217, 255, 0.1), rgba(5, 7, 13, 0) 18%),
+            radial-gradient(circle at top right, rgba(139, 245, 178, 0.08), rgba(5, 7, 13, 0) 24%),
             linear-gradient(180deg, #07090f 0%, #090d14 46%, #05070d 100%);
           color: #f5f7fb;
           font-family: "SF Pro Display", "Inter", "Segoe UI", Arial, sans-serif;
@@ -73,65 +78,37 @@ export default function App() {
         .workspace-grid {
           display: grid;
           min-width: 0;
+          position: relative;
         }
-        .dashboard-header {
-          border-bottom: 1px solid rgba(255,255,255,0.08);
+        .top-controls {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0 28px;
-          gap: 16px;
-          background: rgba(9, 13, 20, 0.44);
-          backdrop-filter: blur(16px);
+          padding: 18px 28px 0;
+          gap: 12px;
+          min-height: 72px;
         }
-        .header-brand {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          min-width: 0;
-        }
-        .brand-mark {
-          width: 42px;
-          height: 42px;
-          border-radius: 14px;
-          display: grid;
-          place-items: center;
-          background: radial-gradient(circle at top, rgba(139, 245, 178, 0.32), rgba(100, 217, 255, 0.12));
-          border: 1px solid rgba(117, 255, 163, 0.22);
-          color: #f5f7fb;
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          box-shadow: 0 12px 30px rgba(100, 217, 255, 0.14);
-        }
-        .brand-copy {
-          min-width: 0;
-        }
-        .session-badges {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          margin-top: 8px;
-        }
-        .session-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 7px 10px;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.08);
-          color: rgba(245, 247, 251, 0.88);
-          font-size: 11px;
-        }
-        .header-actions {
+        .top-controls-left,
+        .top-controls-right {
           display: flex;
           align-items: center;
           gap: 10px;
-          flex-wrap: wrap;
-          justify-content: flex-end;
+        }
+        .floating-icon {
+          width: 36px;
+          height: 36px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(9, 13, 20, 0.72);
+          backdrop-filter: blur(16px);
+          color: rgba(245, 247, 251, 0.88);
+          display: grid;
+          place-items: center;
+          cursor: pointer;
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
         }
         .dashboard-summary {
-          padding: 24px 28px 0;
+          padding: 0 28px;
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 12px;
@@ -162,7 +139,7 @@ export default function App() {
           display: grid;
           grid-template-columns: minmax(360px, 1.1fr) minmax(340px, 0.9fr);
           min-height: 0;
-          margin: 24px 28px 0;
+          margin: 22px 28px 0;
           border: 1px solid rgba(255,255,255,0.08);
           border-radius: 30px;
           overflow: hidden;
@@ -171,9 +148,23 @@ export default function App() {
         }
         .right-column {
           display: grid;
-          grid-template-rows: minmax(260px, 0.95fr) minmax(220px, 1fr);
+          grid-template-rows: 220px minmax(260px, 1fr) minmax(260px, 1fr);
           min-height: 0;
           border-left: 1px solid rgba(255,255,255,0.08);
+          background: linear-gradient(180deg, rgba(13, 16, 25, 0.72), rgba(9, 12, 19, 0.8));
+        }
+        .right-column > * {
+          min-height: 0;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        .right-column > *:not(:last-child) {
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .right-column > :first-child {
+          min-height: 220px;
+          max-height: 220px;
         }
         .dashboard-footer {
           display: flex;
@@ -185,13 +176,12 @@ export default function App() {
           gap: 12px;
         }
         @media (max-width: 1180px) {
-          .dashboard-summary {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+          .top-controls {
             padding: 16px 18px 0;
           }
-          .dashboard-header {
-            padding: 12px 18px;
-            min-height: 88px;
+          .dashboard-summary {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            padding: 0 18px;
           }
         }
         @media (max-width: 980px) {
@@ -199,6 +189,7 @@ export default function App() {
             grid-template-columns: 1fr;
           }
           .right-column {
+            grid-template-rows: 220px minmax(280px, 1fr) minmax(280px, 1fr);
             border-left: none;
             border-top: 1px solid #172436;
           }
@@ -206,16 +197,6 @@ export default function App() {
             padding: 10px 18px;
             min-height: 42px;
             flex-wrap: wrap;
-          }
-        }
-        @media (max-width: 860px) {
-          .dashboard-header {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-          .header-actions {
-            width: 100%;
-            justify-content: flex-start;
           }
         }
         @media (max-width: 640px) {
@@ -249,50 +230,33 @@ export default function App() {
           />
         ) : null}
 
-        <div
+          <div
           className="workspace-grid"
           style={{
-            gridTemplateRows: summaryVisible ? "92px auto 1fr 26px" : "92px 1fr 26px"
+            gridTemplateRows: summaryVisible ? "72px auto 1fr 26px" : "72px 1fr 26px"
           }}
         >
-          <header className="dashboard-header">
-            <div className="header-brand">
-              <div className="brand-mark">VG</div>
-              <div className="brand-copy">
-                <div style={{ fontSize: 22, fontWeight: 700 }}>VoiceGuard Live Ops</div>
-                <div style={{ color: "rgba(228, 232, 241, 0.68)", fontSize: 12 }}>
-                  Twilio phone call monitor with live transcript and tool usage.
-                </div>
-                <div className="session-badges">
-                  <span className="session-badge">
-                    Session: {activeSessionId || "not connected"}
-                  </span>
-                  <span className="session-badge">
-                    {mode === "live" ? "Live phone call" : "Demo mode"}
-                  </span>
-                  <span className="session-badge">
-                    To: {callDetails.to_number || "Twilio number not attached yet"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="header-actions">
+          <div className="top-controls">
+            <div className="top-controls-left">
               <button
                 onClick={() => setSidebarVisible((value) => !value)}
-                style={toggleButtonStyle}
+                className="floating-icon"
+                aria-label={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
               >
-                {sidebarVisible ? "Hide sidebar" : "Show sidebar"}
+                {sidebarVisible ? "⟨" : "⟩"}
               </button>
+            </div>
+            <div className="top-controls-right">
+              <ConnectionStatus status={connectionStatus} />
               <button
                 onClick={() => setSummaryVisible((value) => !value)}
-                style={toggleButtonStyle}
+                className="floating-icon"
+                aria-label={summaryVisible ? "Hide summary" : "Show summary"}
               >
-                {summaryVisible ? "Hide summary" : "Show summary"}
+                {summaryVisible ? "▴" : "▾"}
               </button>
-              <ConnectionStatus status={connectionStatus} />
             </div>
-          </header>
+          </div>
 
           {summaryVisible ? (
             <section className="dashboard-summary">
@@ -308,6 +272,7 @@ export default function App() {
           <main className="dashboard-main">
             <TranscriptPanel transcript={transcript} />
             <div className="right-column">
+              <VoiceActivityPanel active={agentSpeaking} />
               <ToolActivityPanel toolActivity={toolActivity} />
               <ReasoningPanel reasoning={reasoning} />
             </div>
@@ -317,7 +282,7 @@ export default function App() {
             <span>Powered by VoiceGuard + Gemini Live + Twilio Media Streams</span>
             <span>
               {sessionComplete
-                ? `Session result: ${sessionComplete.result}`
+                ? `Session result: ${prettifyValue(sessionComplete.result)}`
                 : callDetails.error
                   ? `Call error: ${callDetails.error}`
                   : "Call in progress"}
@@ -325,11 +290,6 @@ export default function App() {
           </footer>
         </div>
       </div>
-
-      <SessionOverlay
-        sessionComplete={sessionComplete}
-        onClose={() => setSessionComplete(null)}
-      />
     </>
   );
 }

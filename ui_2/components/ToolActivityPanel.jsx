@@ -24,7 +24,16 @@ export default function ToolActivityPanel({ toolActivity }) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        height: "100%",
+        maxHeight: "100%",
+        overflow: "hidden"
+      }}
+    >
       <div
         style={{
           height: 52,
@@ -69,7 +78,10 @@ export default function ToolActivityPanel({ toolActivity }) {
         onScroll={handleScroll}
         style={{
           flex: 1,
+          height: 0,
+          maxHeight: "100%",
           overflowY: "auto",
+          overflowX: "hidden",
           padding: "16px 18px",
           display: "grid",
           gap: 10,
@@ -126,7 +138,8 @@ function ToolEventCard({ item }) {
         borderRadius: 18,
         background: "linear-gradient(180deg, rgba(19, 29, 39, 0.96), rgba(12, 18, 27, 0.92))",
         border: `1px solid ${accent}22`,
-        boxShadow: "0 16px 36px rgba(0,0,0,0.18)"
+        boxShadow: "0 16px 36px rgba(0,0,0,0.18)",
+        minWidth: 0
       }}
     >
       <div
@@ -156,6 +169,7 @@ function ToolEventCard({ item }) {
           lineHeight: 1.5,
           fontFamily: '"IBM Plex Mono", monospace',
           overflowX: "auto",
+          maxWidth: "100%",
           whiteSpace: "pre-wrap",
           wordBreak: "break-word"
         }}

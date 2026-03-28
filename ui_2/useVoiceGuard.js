@@ -17,10 +17,12 @@ const initialCallDetails = {
 
 export function useVoiceGuard() {
   const socketRef = useRef(null);
+  const agentSpeakingTimerRef = useRef(null);
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [mode, setMode] = useState("live");
   const [activeSessionId, setActiveSessionId] = useState("");
   const [availableSessions, setAvailableSessions] = useState([]);
+  const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [transcript, setTranscript] = useState([]);
   const [toolActivity, setToolActivity] = useState([]);
   const [reasoning, setReasoning] = useState([]);
@@ -49,6 +51,7 @@ export function useVoiceGuard() {
     });
     setSessionComplete(null);
     setCallDetails(initialCallDetails);
+    setAgentSpeaking(false);
   };
 
   const replayEvents = (events) => {
@@ -194,6 +197,17 @@ export function useVoiceGuard() {
           setCurrentScenario(payload.scenario || "happy_path");
           break;
         case "transcript.add":
+          if (payload.speaker === "agent") {
+            setAgentSpeaking(true);
+            if (agentSpeakingTimerRef.current) {
+              window.clearTimeout(agentSpeakingTimerRef.current);
+            }
+            agentSpeakingTimerRef.current = window.setTimeout(() => {
+              setAgentSpeaking(false);
+            }, 1600);
+          } else if (payload.speaker === "user") {
+            setAgentSpeaking(false);
+          }
           setTranscript((items) => [...items, normalizeTranscriptEvent(payload)]);
           break;
         case "tool.call":
@@ -231,6 +245,9 @@ export function useVoiceGuard() {
 
     return () => {
       window.clearInterval(sessionsInterval);
+      if (agentSpeakingTimerRef.current) {
+        window.clearTimeout(agentSpeakingTimerRef.current);
+      }
       socket.close();
     };
   }, []);
@@ -273,6 +290,7 @@ export function useVoiceGuard() {
     mode,
     activeSessionId,
     availableSessions,
+    agentSpeaking,
     connectionStatus,
     transcript,
     toolActivity,
