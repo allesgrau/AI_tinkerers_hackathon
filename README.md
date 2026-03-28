@@ -25,10 +25,14 @@ Set these in `.env`:
 GEMINI_API_KEY=your_key_here
 GEMINI_LIVE_MODEL=models/gemini-3.1-flash-live-preview
 GEMINI_LIVE_VOICE=Zephyr
+GEMINI_ENABLE_INPUT_AUDIO_TRANSCRIPTION=false
+GEMINI_ENABLE_OUTPUT_AUDIO_TRANSCRIPTION=false
 PUBLIC_BASE_URL=https://your-public-ngrok-or-cloudflare-url
 ```
 
 `PUBLIC_BASE_URL` must be a public HTTPS URL that Twilio can reach. The backend converts it to `wss://.../twilio/media-stream` inside the generated TwiML response.
+
+For `models/gemini-3.1-flash-live-preview`, keep the two transcription flags set to `false`. If you switch to a Live model that officially supports audio transcription in this flow, you can turn them on.
 
 ### Run the demo
 

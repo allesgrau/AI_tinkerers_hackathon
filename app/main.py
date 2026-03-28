@@ -121,6 +121,20 @@ def live_call(call_id: str) -> JSONResponse:
     return JSONResponse({"ok": True, "item": item})
 
 
+@app.get("/api/demo/scenarios")
+def demo_scenarios() -> JSONResponse:
+    return JSONResponse(
+        {
+            "scenarios": [
+                "happy_path",
+                "wrong_voice",
+                "brute_force",
+                "replay_attack",
+            ]
+        }
+    )
+
+
 def _infer_public_base_url(request: Request) -> str:
     configured = (
         os.environ.get("PUBLIC_BASE_URL")

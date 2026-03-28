@@ -40,6 +40,13 @@ DEFAULT_MODEL = os.environ.get(
 DEFAULT_VOICE = os.environ.get("GEMINI_LIVE_VOICE", "Zephyr")
 
 
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 class GeminiLiveTwilioBridge:
     def __init__(
         self,
@@ -67,6 +74,15 @@ class GeminiLiveTwilioBridge:
         self.registry = registry
         self.model = model or DEFAULT_MODEL
         self.voice_name = voice_name or DEFAULT_VOICE
+        transcription_default = "3.1-flash-live-preview" not in self.model
+        self.enable_input_audio_transcription = _env_flag(
+            "GEMINI_ENABLE_INPUT_AUDIO_TRANSCRIPTION",
+            transcription_default,
+        )
+        self.enable_output_audio_transcription = _env_flag(
+            "GEMINI_ENABLE_OUTPUT_AUDIO_TRANSCRIPTION",
+            transcription_default,
+        )
         self.client = genai.Client(
             api_key=api_key,
             http_options={"api_version": "v1beta"},
@@ -100,8 +116,8 @@ class GeminiLiveTwilioBridge:
         config = build_live_connect_config(
             response_modalities=["AUDIO"],
             voice_name=self.voice_name,
-            input_audio_transcription=True,
-            output_audio_transcription=True,
+            input_audio_transcription=self.enable_input_audio_transcription,
+            output_audio_transcription=self.enable_output_audio_transcription,
         )
         self.registry.upsert(
             self.session_id,
@@ -120,6 +136,8 @@ class GeminiLiveTwilioBridge:
                 from_number=self.from_number,
                 to_number=self.to_number,
                 model=self.model,
+                input_audio_transcription=self.enable_input_audio_transcription,
+                output_audio_transcription=self.enable_output_audio_transcription,
             ),
         )
 
@@ -155,24 +173,37 @@ class GeminiLiveTwilioBridge:
         except asyncio.CancelledError:
             pass
         except errors.APIError as exc:
-            self.registry.record_error(self.session_id, str(exc))
+            message = str(exc)
+            self.registry.record_error(self.session_id, message)
             self.event_bus.emit_sync(
                 self.session_id,
-                reasoning(f"Gemini Live API error: {exc}", level="error"),
+                reasoning(f"Gemini Live API error: {message}", level="error"),
             )
             self.event_bus.emit_sync(
                 self.session_id,
-                call_update("error", error=str(exc)),
+                call_update("error", error=message),
+            )
+        except ExceptionGroup as exc:
+            root_message = self._extract_exception_message(exc)
+            self.registry.record_error(self.session_id, root_message)
+            self.event_bus.emit_sync(
+                self.session_id,
+                reasoning(f"Bridge failure: {root_message}", level="error"),
+            )
+            self.event_bus.emit_sync(
+                self.session_id,
+                call_update("error", error=root_message),
             )
         except Exception as exc:
-            self.registry.record_error(self.session_id, str(exc))
+            message = str(exc)
+            self.registry.record_error(self.session_id, message)
             self.event_bus.emit_sync(
                 self.session_id,
-                reasoning(f"Bridge failure: {exc}", level="error"),
+                reasoning(f"Bridge failure: {message}", level="error"),
             )
             self.event_bus.emit_sync(
                 self.session_id,
-                call_update("error", error=str(exc)),
+                call_update("error", error=message),
             )
         finally:
             self.registry.end(self.session_id, "completed")
@@ -193,7 +224,7 @@ class GeminiLiveTwilioBridge:
             await session.send_realtime_input(
                 audio={
                     "data": pcm_16k,
-                    "mime_type": f"audio/pcm;rate={MODEL_INPUT_SAMPLE_RATE}",
+                    "mime_type": "audio/pcm",
                 }
             )
 
@@ -310,3 +341,10 @@ class GeminiLiveTwilioBridge:
             return dict(arguments)
         except (TypeError, ValueError):
             return {}
+
+    @classmethod
+    def _extract_exception_message(cls, exc: ExceptionGroup) -> str:
+        current: BaseException = exc
+        while isinstance(current, BaseExceptionGroup) and current.exceptions:
+            current = current.exceptions[0]
+        return str(current) or current.__class__.__name__
