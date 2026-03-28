@@ -207,3 +207,21 @@ marimo/_lsp/
 __marimo__/
 
 # Local SQLite databases
+hospital_agent.db
+*.db
+
+# Environment variables (NEVER commit!)
+.env
+.env.local
+.env.*.local
+
+# Audio buffers
+audio_buffer/
+*.wav
+*.mp3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

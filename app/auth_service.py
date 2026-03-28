@@ -4,6 +4,7 @@ import base64
 import random
 from pathlib import Path
 
+from app.audit_logger import AuditLogger
 from app.config import settings
 from app.db import get_connection, utc_now_iso
 from app.sms import SmsService
@@ -48,6 +49,7 @@ class AuthService:
             ).fetchone()
 
             if patient is None:
+                AuditLogger.log_pesel_lookup(call_id, pesel, found=False)
                 return {"ok": False, "message": "Nie znaleziono pacjenta o podanym PESEL."}
 
             connection.execute(
@@ -60,6 +62,7 @@ class AuthService:
             )
             connection.commit()
 
+        AuditLogger.log_pesel_lookup(call_id, pesel, found=True)
         return {
             "ok": True,
             "message": f"PESEL zweryfikowany dla: {patient['full_name']}.",
@@ -85,6 +88,7 @@ class AuthService:
             ).fetchone()
 
             if row is None or row["patient_pesel"] is None:
+                AuditLogger.log_auth_failure(call_id, None, "No PESEL in session before SMS")
                 return {"ok": False, "message": "Najpierw podaj poprawny PESEL."}
 
             code = f"{random.randint(100000, 999999)}"
@@ -100,6 +104,7 @@ class AuthService:
             )
             connection.commit()
 
+        AuditLogger.log_sms_sent(call_id, row["patient_pesel"], row["phone_number"])
         return {
             "ok": True,
             "message": "Kod SMS został wysłany. Poproś użytkownika o odczytanie kodu.",
@@ -113,7 +118,7 @@ class AuthService:
         with get_connection() as connection:
             row = connection.execute(
                 """
-                SELECT sms_code
+                SELECT sms_code, patient_pesel
                 FROM auth_sessions
                 WHERE call_id = ?
                 """,
@@ -121,9 +126,11 @@ class AuthService:
             ).fetchone()
 
             if row is None or row["sms_code"] is None:
+                AuditLogger.log_sms_verification(call_id, None, False, "No SMS generated yet")
                 return {"ok": False, "message": "Kod SMS nie został jeszcze wygenerowany."}
 
             if row["sms_code"] != clean_code:
+                AuditLogger.log_sms_verification(call_id, row["patient_pesel"], False, "Wrong code entered")
                 return {"ok": False, "message": "Kod SMS jest niepoprawny."}
 
             connection.execute(
@@ -136,6 +143,7 @@ class AuthService:
             )
             connection.commit()
 
+        AuditLogger.log_sms_verification(call_id, row["patient_pesel"], True, "SMS code verified successfully")
         return {"ok": True, "message": "Kod SMS poprawny."}
 
     def ingest_audio(self, call_id: str, audio_base64: str, extension: str = "wav") -> dict:
@@ -166,6 +174,7 @@ class AuthService:
             ).fetchone()
 
             if row is None or row["patient_pesel"] is None:
+                AuditLogger.log_auth_failure(call_id, None, "No PESEL in session for voice verification")
                 return {"ok": False, "message": "Brak PESEL w sesji autoryzacji."}
 
             connection.execute(
@@ -196,6 +205,15 @@ class AuthService:
                 (status, similarity, utc_now_iso(), call_id),
             )
             connection.commit()
+
+        is_success = status == "passed"
+        AuditLogger.log_voice_verification(
+            call_id, 
+            row["patient_pesel"], 
+            is_success, 
+            similarity, 
+            f"Status: {status}"
+        )
 
         return {
             "ok": True,
@@ -229,6 +247,8 @@ class AuthService:
         if row is None:
             return {"ok": False, "message": "Sesja nie istnieje."}
 
+        fully_authenticated = bool(row["sms_verified"]) and row["voice_verification_status"] == "passed"
+        
         return {
             "ok": True,
             "call_id": row["call_id"],
@@ -236,7 +256,6 @@ class AuthService:
             "patient_name": row["full_name"],
             "sms_sent_at": row["sms_sent_at"],
             "sms_verified": bool(row["sms_verified"]),
-            "voice_verification_status": row["voice_verification_status"],
+            "voice_verification_status": row["voice_verification_status"],      
             "voice_similarity_score": row["voice_similarity_score"],
-            "fully_authenticated": bool(row["sms_verified"]) and row["voice_verification_status"] == "passed",
-        }
+            "fully_authenticated": fully_authenticated,
