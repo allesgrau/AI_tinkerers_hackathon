@@ -1,44 +1,27 @@
-version: '3.9'
+version: "3.9"
 
 services:
-  hospital-agent-api:
+  voiceguard:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: hospital-voice-agent
+    container_name: voiceguard
     ports:
       - "8000:8000"
     environment:
-      # Load from .env file
-      - DB_PATH=/app/hospital_agent.db
-      - SMS_PROVIDER=${SMS_PROVIDER:-twilio}
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
-      - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER}
-      - VAPI_API_KEY=${VAPI_API_KEY}
-      - VAPI_PHONE_NUMBER=${VAPI_PHONE_NUMBER}
-      - VOICE_SIMILARITY_THRESHOLD=${VOICE_SIMILARITY_THRESHOLD:-0.72}
-      - AUDIO_BUFFER_DIR=/app/audio_buffer
+      - VOICEGUARD_CONFIG=/app/voiceguard.yml
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
-      - ./hospital_agent.db:/app/hospital_agent.db
-      - ./audio_buffer:/app/audio_buffer
-    networks:
-      - hospital-network
+      - ./voiceguard.yml:/app/voiceguard.yml:ro
+      - db-data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-
-networks:
-  hospital-network:
-    driver: bridge
+      start_period: 10s
 
 volumes:
-  database:
-    driver: local
-  audio_buffer:
+  db-data:
     driver: local

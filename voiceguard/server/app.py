@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +33,30 @@ logger = logging.getLogger(__name__)
 
 settings = load_settings()
 
-app = FastAPI(title="VoiceGuard", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):  # noqa: ANN201
+    """Startup/shutdown lifecycle — auto-plays demo scenario if VOICEGUARD_DEMO_MODE is set."""
+    demo_task = None
+    if os.environ.get("VOICEGUARD_DEMO_MODE") == "1":
+        scenario = os.environ.get("VOICEGUARD_DEMO_SCENARIO", "happy_path")
+        logger.info("Demo mode active — will auto-play '%s' after 2 s", scenario)
+
+        async def _autoplay() -> None:
+            await asyncio.sleep(2)  # give WebSocket clients time to connect
+            from voiceguard.demo.runner import play_scenario
+
+            await play_scenario(scenario, session_id=f"demo-{scenario}")
+
+        demo_task = asyncio.create_task(_autoplay())
+
+    yield  # app is running
+
+    if demo_task and not demo_task.done():
+        demo_task.cancel()
+
+
+app = FastAPI(title="VoiceGuard", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

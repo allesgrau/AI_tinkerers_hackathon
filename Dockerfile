@@ -1,27 +1,37 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS base
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# System deps for building wheels
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
+# ── Python backend ────────────────────────────────────────────────
+COPY pyproject.toml voiceguard.yml ./
+COPY voiceguard/ voiceguard/
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -e .
 
-# Copy application
-COPY . .
+# ── Frontend build (Node stage) ──────────────────────────────────
+FROM node:20-slim AS ui-builder
 
-# Create necessary directories
-RUN mkdir -p audio_buffer
+WORKDIR /app
+COPY package.json ./
+RUN npm install
 
-# Expose port
+COPY vite.config.js voice-monitor.html index.html ./
+COPY ui/ ui/
+COPY ui_2/ ui_2/
+
+RUN npm run build
+
+# ── Final image ──────────────────────────────────────────────────
+FROM base
+
+# Copy built UI into the location FastAPI expects
+COPY --from=ui-builder /app/dist/ /app/ui/dist/
+
 EXPOSE 8000
 
-# Run application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["voiceguard", "serve", "--host", "0.0.0.0"]

@@ -29,18 +29,30 @@ def serve(host: str, port: int, reload: bool) -> None:
 @main.command("demo")
 @click.option("--host", default="0.0.0.0")
 @click.option("--port", default=8000, type=int)
-@click.option("--scenario", default="happy_path", help="Scenario: happy_path, wrong_voice, brute_force")
-def demo(host: str, port: int, scenario: str) -> None:
+@click.option("--scenario", default="happy_path", help="Scenario: happy_path, wrong_voice, brute_force, replay_attack")
+@click.option("--no-browser", is_flag=True, help="Don't open browser automatically")
+def demo(host: str, port: int, scenario: str, no_browser: bool) -> None:
     """Run VoiceGuard in demo mode with simulated scenarios."""
+    import os
+
     import uvicorn
 
     click.echo(f"Starting VoiceGuard DEMO mode (scenario: {scenario})")
-    click.echo(f"Server on {host}:{port} — open browser to see live verification")
+    click.echo(f"Server on http://localhost:{port} — open browser to see live verification")
 
-    # Store chosen scenario so the demo runner can pick it up
-    import os
     os.environ["VOICEGUARD_DEMO_MODE"] = "1"
     os.environ["VOICEGUARD_DEMO_SCENARIO"] = scenario
+
+    if not no_browser:
+        import threading
+        import time
+        import webbrowser
+
+        def _open_browser() -> None:
+            time.sleep(1.5)
+            webbrowser.open(f"http://localhost:{port}")
+
+        threading.Thread(target=_open_browser, daemon=True).start()
 
     uvicorn.run(
         "voiceguard.server.app:app",
