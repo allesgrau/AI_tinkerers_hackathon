@@ -40,6 +40,12 @@ This setup uses Python's built-in `sqlite3` module, so there are no external pac
 
 ---
 
+## Co dokładnie robimy (Claude prompt)
+
+To tak, tworzymy jeden system, który potem będziemy sprzedawać różnym instytucjom (przychodnie, szpitale, banki, urzędy). Każda instytucja sobie konfiguruje swojego system prompta i swoje bazy danych. Następnie, gdy użytkownik dzwoni do danej instytucji, odbiera agent. Autoryzuje go trzy-krokowo: prosi Cię o PESEL, następnie wysyła wiadomość SMS na twój numer telefonu, i każe Ci przeczytać liczbę wysłaną w danym SMS. I w tle tajnie sprawdza, czy ten głos faktycznie należy do danej osoby. Następnie użytkownik mówi, co chce osiągnąć. Automatycznie generowany jest odpowiedni system prompt (na podstawie info od instytucji i tego co powiedział użytkownik), i do agenta dołączane są odpowiednie skills/. Potem agent automatycznie umawia wiztę/daje upoważnienie określonej osobie/coś podpisuje. I np. mamy modyfikowaną bazę wizyt. I po każdej rozmowie update'owana jest baza danych z poprzednimi, historycznymi rozmowami - jakoś musimy sprawdzać, czy dany głos jest autoryzowany. I robimy UI dla firm, aby mogły sobie szybko konfigurować system prompts, skills/, mieć dostęp do baz danych. Oczywiście, Ci ludzie z instytucji nie konfigurują system prompts/skills sami - tylko piszą, co chcą aby agent umiał, i automatycznie system prompt i skills są generowane. (żeby było łatwe do używania dla osób nie-technicznych)
+
+---
+
 ## High-level architecture
 
 ![voice_agent_system_flow](https://github.com/user-attachments/assets/fcb250cd-8595-4cfb-a3f5-2f3ec95af565)
