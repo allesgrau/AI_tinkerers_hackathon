@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+from contextlib import suppress
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from voiceguard.demo.runner import available_scenarios, play_scenario
 from voiceguard.server.events import event_bus
 
 logger = logging.getLogger(__name__)
@@ -21,23 +24,26 @@ async def verification_ws(ws: WebSocket) -> None:
 
     Client can send:
         {"action": "subscribe", "session_id": "abc123"}
-        {"action": "ping"}
         {"action": "history", "session_id": "abc123"}
+        {"action": "ping"}
+        {"type": "scenario.start", "scenario": "happy_path"}
 
     Server pushes:
-        {"type": "step.update",      "session_id": "...", "step": "pesel", "status": "verified", ...}
-        {"type": "reasoning.add",    "session_id": "...", "text": "...", "level": "info"}
-        {"type": "transcript.add",   "session_id": "...", "speaker": "agent", "text": "..."}
-        {"type": "risk.update",      "session_id": "...", "indicators": {...}}
-        {"type": "session.complete", "session_id": "...", "token": "eyJ...", ...}
+        {"type": "connected", "status": "ok"}
+        {"type": "scenario.list", "items": [...]}
+        {"type": "subscribed", "session_id": "..."}
+        {"type": "history", "session_id": "...", "events": [...]}
+        ...verification events from the event bus...
     """
     await ws.accept()
     subscribed_session = "*"
+    current_demo_task: asyncio.Task[None] | None = None
 
     try:
-        await event_bus.subscribe(ws, "*")
+        await event_bus.subscribe(ws, subscribed_session)
         await ws.send_text(json.dumps({"type": "connected", "status": "ok"}))
-        logger.info("WebSocket client connected (global)")
+        await ws.send_text(json.dumps({"type": "scenario.list", "items": available_scenarios()}))
+        logger.info("WebSocket client connected (session=%s)", subscribed_session)
 
         while True:
             raw = await ws.receive_text()
@@ -48,32 +54,65 @@ async def verification_ws(ws: WebSocket) -> None:
                 continue
 
             action = msg.get("action")
+            msg_type = msg.get("type")
 
             if action == "subscribe":
                 session_id = msg.get("session_id", "*")
                 await event_bus.unsubscribe(ws, subscribed_session)
-                await event_bus.subscribe(ws, session_id)
                 subscribed_session = session_id
+                await event_bus.subscribe(ws, subscribed_session)
                 await ws.send_text(
-                    json.dumps({"type": "subscribed", "session_id": session_id})
+                    json.dumps({"type": "subscribed", "session_id": subscribed_session})
                 )
-                logger.info("Client subscribed to session %s", session_id)
+                logger.info("Client subscribed to session %s", subscribed_session)
 
             elif action == "history":
                 session_id = msg.get("session_id", subscribed_session)
                 history = event_bus.get_history(session_id)
                 await ws.send_text(
-                    json.dumps({"type": "history", "session_id": session_id, "events": history})
+                    json.dumps(
+                        {"type": "history", "session_id": session_id, "events": history}
+                    )
                 )
 
             elif action == "ping":
                 await ws.send_text(json.dumps({"type": "pong"}))
 
+            elif msg_type == "scenario.start":
+                scenario_name = msg.get("scenario", "happy_path")
+                scenario_session_id = f"demo-{scenario_name}"
+
+                if current_demo_task and not current_demo_task.done():
+                    current_demo_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await current_demo_task
+
+                await event_bus.unsubscribe(ws, subscribed_session)
+                subscribed_session = scenario_session_id
+                await event_bus.subscribe(ws, subscribed_session)
+
+                event_bus.clear_history(scenario_session_id)
+                await ws.send_text(
+                    json.dumps({"type": "session.reset", "scenario": scenario_name})
+                )
+                await ws.send_text(
+                    json.dumps({"type": "subscribed", "session_id": scenario_session_id})
+                )
+                current_demo_task = asyncio.create_task(
+                    play_scenario(scenario_name, session_id=scenario_session_id)
+                )
+
             else:
-                await ws.send_text(json.dumps({"error": f"unknown action: {action}"}))
+                await ws.send_text(
+                    json.dumps({"error": f"unknown action: {action or msg_type}"})
+                )
 
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
     finally:
+        if current_demo_task and not current_demo_task.done():
+            current_demo_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await current_demo_task
         await event_bus.unsubscribe(ws, subscribed_session)
         await event_bus.unsubscribe(ws, "*")

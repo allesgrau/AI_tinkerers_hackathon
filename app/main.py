@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from fastapi import BackgroundTasks, FastAPI
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.auth_service import AuthService
+from app.voice_monitor import get_conversation, list_conversations
+from voiceguard.server.ws import router as voiceguard_ws_router
 
 
 app = FastAPI(title="Hospital Voice Auth Agent", version="0.1.0")
+app.include_router(voiceguard_ws_router)
 auth_service = AuthService()
 
 
@@ -67,3 +71,16 @@ def media_audio(payload: AudioPayload, background_tasks: BackgroundTasks) -> dic
 @app.post("/vapi/tools/auth-status")
 def auth_status(payload: StatusPayload) -> dict:
     return auth_service.get_status(payload.call_id)
+
+
+@app.get("/api/voice-monitor/conversations")
+def voice_monitor_conversations() -> JSONResponse:
+    return JSONResponse({"items": list_conversations()})
+
+
+@app.get("/api/voice-monitor/conversations/{call_id}")
+def voice_monitor_conversation(call_id: str) -> JSONResponse:
+    conversation = get_conversation(call_id)
+    if conversation is None:
+        return JSONResponse({"ok": False, "message": "Conversation not found."}, status_code=404)
+    return JSONResponse({"ok": True, "item": conversation})
