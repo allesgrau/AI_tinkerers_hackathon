@@ -78,13 +78,8 @@ class VerificationSession:
         if step in self._steps:
             self._steps[step].status = status
             self._steps[step].details = payload
-        if self._event_bus is not None:
-            from voiceguard.server.events import Event
-
-            self._event_bus.emit_sync(
-                self.session_id,
-                Event("step.update", {"step": step, "status": status, **payload}),
-            )
+        # Note: WebSocket broadcasting is handled by the server layer (app.py),
+        # not here, to avoid duplicate events and keep a single source of truth.
 
     def snapshot(self) -> SessionSnapshot:
         return SessionSnapshot(

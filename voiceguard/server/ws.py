@@ -9,7 +9,6 @@ from contextlib import suppress
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from voiceguard.demo.runner import available_scenarios, play_scenario
 from voiceguard.server.events import event_bus
 
 logger = logging.getLogger(__name__)
@@ -42,6 +41,8 @@ async def verification_ws(ws: WebSocket) -> None:
     try:
         await event_bus.subscribe(ws, subscribed_session)
         await ws.send_text(json.dumps({"type": "connected", "status": "ok"}))
+
+        from voiceguard.demo.runner import available_scenarios
         await ws.send_text(json.dumps({"type": "scenario.list", "items": available_scenarios()}))
         logger.info("WebSocket client connected (session=%s)", subscribed_session)
 
@@ -90,6 +91,8 @@ async def verification_ws(ws: WebSocket) -> None:
                 await event_bus.unsubscribe(ws, subscribed_session)
                 subscribed_session = scenario_session_id
                 await event_bus.subscribe(ws, subscribed_session)
+
+                from voiceguard.demo.runner import play_scenario
 
                 event_bus.clear_history(scenario_session_id)
                 await ws.send_text(
