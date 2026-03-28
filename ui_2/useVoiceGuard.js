@@ -11,6 +11,7 @@ export function useVoiceGuard() {
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [mode, setMode] = useState("live");
   const [activeSessionId, setActiveSessionId] = useState("");
+  const [availableSessions, setAvailableSessions] = useState([]);
   const [transcript, setTranscript] = useState([]);
   const [reasoning, setReasoning] = useState([]);
   const [steps, setSteps] = useState(initialSteps);
@@ -90,9 +91,35 @@ export function useVoiceGuard() {
     socket.send(JSON.stringify({ action: "history", session_id: sessionId }));
   };
 
+  const loadScenarios = async () => {
+    try {
+      const response = await fetch("/api/demo/scenarios");
+      if (!response.ok) {
+        return;
+      }
+      const payload = await response.json();
+      setScenarios(payload.scenarios || []);
+    } catch {
+      // WebSocket fallback still provides scenarios in demo mode.
+    }
+  };
+
+  const loadSessions = async () => {
+    try {
+      const response = await fetch("/api/sessions");
+      if (!response.ok) {
+        return;
+      }
+      const payload = await response.json();
+      setAvailableSessions(payload.sessions || []);
+    } catch {
+      setAvailableSessions([]);
+    }
+  };
+
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${protocol}://${window.location.hostname}:8000/ws`);
+    const socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
     socketRef.current = socket;
 
     socket.onopen = () => {
@@ -160,14 +187,37 @@ export function useVoiceGuard() {
       }
     };
 
+    loadScenarios();
+    loadSessions();
+    const sessionsInterval = window.setInterval(loadSessions, 5000);
+
     return () => {
+      window.clearInterval(sessionsInterval);
       socket.close();
     };
   }, []);
 
-  const startScenario = (scenario) => {
+  const startScenario = async (scenario) => {
     setCurrentScenario(scenario);
     setMode("demo");
+    try {
+      const response = await fetch("/api/demo/play", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenario })
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        if (payload.session_id) {
+          setActiveSessionId(payload.session_id);
+          subscribeToSession(payload.session_id, "demo");
+          return;
+        }
+      }
+    } catch {
+      // Fall back to direct WebSocket command in local demo mode.
+    }
+
     setActiveSessionId(`demo-${scenario}`);
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: "scenario.start", scenario }));
@@ -184,6 +234,7 @@ export function useVoiceGuard() {
   return {
     mode,
     activeSessionId,
+    availableSessions,
     connectionStatus,
     transcript,
     reasoning,
@@ -194,7 +245,8 @@ export function useVoiceGuard() {
     sessionComplete,
     setSessionComplete,
     startScenario,
-    subscribeToLiveSession
+    subscribeToLiveSession,
+    refreshSessions: loadSessions
   };
 }
 

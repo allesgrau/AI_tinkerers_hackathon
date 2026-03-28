@@ -14,6 +14,7 @@ export default function App() {
   const {
     mode,
     activeSessionId,
+    availableSessions,
     connectionStatus,
     transcript,
     reasoning,
@@ -24,7 +25,8 @@ export default function App() {
     sessionComplete,
     setSessionComplete,
     startScenario,
-    subscribeToLiveSession
+    subscribeToLiveSession,
+    refreshSessions
   } = useVoiceGuard();
 
   const availableScenarios =
@@ -167,10 +169,12 @@ export default function App() {
           <SessionSidebar
             mode={mode}
             activeSessionId={activeSessionId}
+            availableSessions={availableSessions}
             scenarios={availableScenarios}
             currentScenario={currentScenario}
             startScenario={startScenario}
             subscribeToLiveSession={subscribeToLiveSession}
+            refreshSessions={refreshSessions}
             connectionStatus={connectionStatus}
             sessionComplete={sessionComplete}
           />

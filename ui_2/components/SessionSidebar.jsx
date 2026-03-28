@@ -11,10 +11,12 @@ const statusConfig = {
 export default function SessionSidebar({
   mode,
   activeSessionId,
+  availableSessions,
   scenarios,
   currentScenario,
   startScenario,
   subscribeToLiveSession,
+  refreshSessions,
   connectionStatus,
   sessionComplete
 }) {
@@ -31,6 +33,7 @@ export default function SessionSidebar({
       : statusConfig.active;
   const modeLabel =
     mode === "live" ? `live · ${activeSessionId || "not connected"}` : currentScenario.replaceAll("_", " ");
+  const recentSessions = (availableSessions || []).slice(0, 5);
 
   return (
     <aside
@@ -135,6 +138,51 @@ export default function SessionSidebar({
           {activeSessionId && mode === "live" ? (
             <div style={{ color: "#94a3b8", fontSize: 11, lineHeight: 1.5, marginTop: 10 }}>
               Active session: <span style={{ color: "#e5edf8" }}>{activeSessionId}</span>
+            </div>
+          ) : null}
+          <button
+            onClick={refreshSessions}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.03)",
+              color: "#cbd5e1",
+              fontWeight: 600,
+              cursor: "pointer",
+              marginTop: 10
+            }}
+          >
+            Refresh sessions
+          </button>
+          {recentSessions.length > 0 ? (
+            <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+              {recentSessions.map((session) => (
+                <button
+                  key={session.session_id}
+                  onClick={() => subscribeToLiveSession(session.session_id)}
+                  style={{
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    background:
+                      session.session_id === activeSessionId
+                        ? "rgba(56,189,248,0.14)"
+                        : "rgba(255,255,255,0.02)",
+                    color: "#e5edf8",
+                    cursor: "pointer"
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                    {session.session_id}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                    OTP tries: {session.otp_attempts} · Completed: {session.completed ? "yes" : "no"}
+                  </div>
+                </button>
+              ))}
             </div>
           ) : null}
         </div>
