@@ -9,17 +9,10 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from database.client import create_connection
 from database.seed_data import APPOINTMENT_SLOTS, DOCTORS, PATIENTS
-
-DB_PATH = ROOT_DIR / "hospital_agent.db"
 SCHEMA_PATH = ROOT_DIR / "database" / "schema.sql"
-
-
-def create_connection() -> sqlite3.Connection:
-    connection = sqlite3.connect(DB_PATH)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON;")
-    return connection
+from database.client import DB_PATH
 
 
 def apply_schema(connection: sqlite3.Connection) -> None:
@@ -30,8 +23,12 @@ def apply_schema(connection: sqlite3.Connection) -> None:
 def seed_patients(connection: sqlite3.Connection) -> None:
     connection.executemany(
         """
-        INSERT OR REPLACE INTO patients (pesel, full_name, phone_number, verification_zip)
+        INSERT INTO patients (pesel, full_name, phone_number, verification_zip)
         VALUES (:pesel, :full_name, :phone_number, :verification_zip)
+        ON CONFLICT(pesel) DO UPDATE SET
+            full_name = excluded.full_name,
+            phone_number = excluded.phone_number,
+            verification_zip = excluded.verification_zip
         """,
         PATIENTS,
     )
