@@ -30,8 +30,20 @@ def apply_schema(connection: sqlite3.Connection) -> None:
 def seed_patients(connection: sqlite3.Connection) -> None:
     connection.executemany(
         """
-        INSERT OR REPLACE INTO patients (pesel, full_name, phone_number, verification_zip)
-        VALUES (:pesel, :full_name, :phone_number, :verification_zip)
+        INSERT OR REPLACE INTO patients (
+            pesel,
+            full_name,
+            phone_number,
+            enrolled_voice_sample,
+            verification_zip
+        )
+        VALUES (
+            :pesel,
+            :full_name,
+            :phone_number,
+            :enrolled_voice_sample,
+            :verification_zip
+        )
         """,
         PATIENTS,
     )

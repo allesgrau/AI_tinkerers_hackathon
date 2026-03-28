@@ -30,6 +30,73 @@ This creates `hospital_agent.db` in the repository root.
 
 This setup uses Python's built-in `sqlite3` module, so there are no external package dependencies to install in this environment.
 
+## MVP: Vapi agent with PESEL + SMS + voice verification
+
+Repo now includes a first backend version for a Vapi phone agent in `app/`.
+
+### What this MVP does
+
+- asks user for PESEL (through Vapi system prompt)
+- validates PESEL against `patients` table
+- sends SMS code (Twilio or mock provider)
+- verifies SMS code
+- accepts call audio as base64 and performs background speaker verification using
+  `speechbrain/spkrec-ecapa-voxceleb`
+- stores auth session status in SQLite (`auth_sessions`, `voiceprints`)
+
+### New API endpoints
+
+- `POST /vapi/tools/collect-pesel`
+- `POST /vapi/tools/send-sms`
+- `POST /vapi/tools/verify-sms`
+- `POST /vapi/tools/auth-status`
+- `POST /vapi/media/audio`
+
+### Quick start
+
+1. Install dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+2. Prepare env:
+
+```bash
+copy .env.example .env
+```
+
+3. (Optional) configure Twilio in `.env` and set `SMS_PROVIDER=twilio`.
+
+4. Recreate or update SQLite schema:
+
+```bash
+python scripts/setup_database.py
+```
+
+5. Run API:
+
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+6. Import assistant template from `vapi/assistant_config.json` and replace
+   `https://YOUR_PUBLIC_URL` with your public webhook URL.
+
+### Hello world smoke test
+
+Run a basic end-to-end test of the current MVP (health check + PESEL + SMS verify):
+
+```bash
+python scripts/hello_world_smoke_test.py
+```
+
+Expected output:
+
+```text
+HELLO WORLD SMOKE TEST PASSED
+```
+
 ---
 
 ## Podział prac

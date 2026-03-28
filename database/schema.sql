@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS patients (
     pesel TEXT PRIMARY KEY,
     full_name TEXT NOT NULL,
     phone_number TEXT NOT NULL,
+    enrolled_voice_sample TEXT,
     verification_zip TEXT NOT NULL,
     CHECK (length(pesel) = 11),
     CHECK (pesel GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]')
@@ -35,13 +36,16 @@ CREATE INDEX IF NOT EXISTS idx_appointments_doctor_datetime ON appointments (doc
 CREATE INDEX IF NOT EXISTS idx_appointments_status_datetime ON appointments (status, appointment_datetime);
 
 -- ============ AUTH TABLES (Person 4 - Auth + Integracje) ============
+-- Enhanced with Person 1 (Voice) feedback for call tracking
 
 CREATE TABLE IF NOT EXISTS voiceprints (
     voiceprint_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    patient_pesel TEXT NOT NULL UNIQUE,
-    voiceprint_hash TEXT NOT NULL,
+    patient_pesel TEXT NOT NULL,
+    voiceprint_hash TEXT,
     voice_embedding TEXT,
+    embedding_json TEXT,
     speaker_id TEXT,
+    model_name TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (patient_pesel) REFERENCES patients (pesel) ON DELETE CASCADE
@@ -62,12 +66,16 @@ CREATE TABLE IF NOT EXISTS sms_verifications (
 
 CREATE TABLE IF NOT EXISTS auth_sessions (
     session_id TEXT PRIMARY KEY,
+    call_id TEXT UNIQUE,
     patient_pesel TEXT NOT NULL,
     auth_token TEXT NOT NULL,
+    sms_code TEXT,
     pesel_verified INTEGER DEFAULT 0,
     sms_verified INTEGER DEFAULT 0,
     voice_verified INTEGER DEFAULT 0,
     voice_confidence REAL,
+    voice_verification_status TEXT DEFAULT 'pending' CHECK (voice_verification_status IN ('pending', 'passed', 'failed', 'skipped')),
+    voice_similarity_score REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP NOT NULL,
@@ -91,5 +99,6 @@ CREATE INDEX IF NOT EXISTS idx_sms_verifications_pesel ON sms_verifications (pat
 CREATE INDEX IF NOT EXISTS idx_sms_verifications_status ON sms_verifications (status);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_pesel ON auth_sessions (patient_pesel);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions (auth_token);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_call_id ON auth_sessions (call_id);
 CREATE INDEX IF NOT EXISTS idx_auth_events_pesel ON auth_events (patient_pesel);
 CREATE INDEX IF NOT EXISTS idx_auth_events_type ON auth_events (event_type);
