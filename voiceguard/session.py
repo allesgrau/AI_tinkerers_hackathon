@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from voiceguard.models import VerificationEvent, VerificationResult
 from voiceguard.otp import generate_otp, hash_otp, verify_otp
 from voiceguard.pesel import lookup_patient
 from voiceguard.voice import VoiceVerifier
+
+if TYPE_CHECKING:
+    from voiceguard.server.events import EventBus
 
 
 class VerificationSession:
@@ -18,6 +22,11 @@ class VerificationSession:
         self.result = VerificationResult(session_id=self.session_id)
         self._otp_hash: str | None = None
         self._voice_verifier = VoiceVerifier()
+        self._event_bus: EventBus | None = None
+
+    def attach_event_bus(self, bus: EventBus) -> None:
+        """Attach an EventBus so _emit also broadcasts to WebSocket clients."""
+        self._event_bus = bus
 
     def _emit(self, step: str, status: str, details: dict | None = None, level: str = "info") -> None:
         self.events.append(
@@ -29,6 +38,14 @@ class VerificationSession:
                 level=level,
             )
         )
+        # Broadcast to WebSocket clients if event bus is attached
+        if self._event_bus is not None:
+            from voiceguard.server.events import Event
+
+            self._event_bus.emit_sync(
+                self.session_id,
+                Event("step.update", {"step": step, "status": status, **(details or {})}),
+            )
 
     def verify_pesel(self) -> bool:
         patient = lookup_patient(self.pesel, db_path=self.db_path)
