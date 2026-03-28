@@ -85,12 +85,20 @@ def print_summary(connection: sqlite3.Connection) -> None:
     available_count = connection.execute(
         "SELECT COUNT(*) FROM appointments WHERE status = 'Available'"
     ).fetchone()[0]
+    voiceprints_count = connection.execute("SELECT COUNT(*) FROM voiceprints").fetchone()[0]
+    auth_sessions_count = connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
+    auth_events_count = connection.execute("SELECT COUNT(*) FROM auth_events").fetchone()[0]
 
-    print(f"Database ready at: {DB_PATH}")
-    print(f"Patients: {patients_count}")
-    print(f"Doctors: {doctors_count}")
-    print(f"Appointments: {appointments_count}")
-    print(f"Available slots: {available_count}")
+    print(f"\nDatabase ready at: {DB_PATH}")
+    print(f"\n📊 Core Data:")
+    print(f"  Patients: {patients_count}")
+    print(f"  Doctors: {doctors_count}")
+    print(f"  Appointments: {appointments_count}")
+    print(f"  Available slots: {available_count}")
+    print(f"\n🔐 Auth (Person 4):")
+    print(f"  Voiceprints enrolled: {voiceprints_count}")
+    print(f"  Active sessions: {auth_sessions_count}")
+    print(f"  Auth events logged: {auth_events_count}")
 
 
 def main() -> None:

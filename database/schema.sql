@@ -33,3 +33,63 @@ CREATE TABLE IF NOT EXISTS appointments (
 CREATE INDEX IF NOT EXISTS idx_doctors_specialty ON doctors (specialty);
 CREATE INDEX IF NOT EXISTS idx_appointments_doctor_datetime ON appointments (doctor_id, appointment_datetime);
 CREATE INDEX IF NOT EXISTS idx_appointments_status_datetime ON appointments (status, appointment_datetime);
+
+-- ============ AUTH TABLES (Person 4 - Auth + Integracje) ============
+
+CREATE TABLE IF NOT EXISTS voiceprints (
+    voiceprint_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_pesel TEXT NOT NULL UNIQUE,
+    voiceprint_hash TEXT NOT NULL,
+    voice_embedding TEXT,
+    speaker_id TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_pesel) REFERENCES patients (pesel) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS sms_verifications (
+    verification_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_pesel TEXT NOT NULL,
+    otp_code TEXT NOT NULL,
+    phone_number TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    is_used INTEGER DEFAULT 0,
+    attempts INTEGER DEFAULT 0,
+    status TEXT CHECK (status IN ('pending', 'verified', 'expired')) DEFAULT 'pending',
+    FOREIGN KEY (patient_pesel) REFERENCES patients (pesel) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    session_id TEXT PRIMARY KEY,
+    patient_pesel TEXT NOT NULL,
+    auth_token TEXT NOT NULL,
+    pesel_verified INTEGER DEFAULT 0,
+    sms_verified INTEGER DEFAULT 0,
+    voice_verified INTEGER DEFAULT 0,
+    voice_confidence REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    status TEXT CHECK (status IN ('active', 'expired', 'revoked')) DEFAULT 'active',
+    FOREIGN KEY (patient_pesel) REFERENCES patients (pesel) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS auth_events (
+    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_pesel TEXT,
+    event_type TEXT NOT NULL CHECK (event_type IN ('pesel_lookup', 'sms_sent', 'sms_verified', 'voice_enrolled', 'voice_verified', 'auth_failed', 'session_created')),
+    status TEXT CHECK (status IN ('success', 'failure')),
+    details TEXT,
+    ip_address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_pesel) REFERENCES patients (pesel) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_voiceprints_pesel ON voiceprints (patient_pesel);
+CREATE INDEX IF NOT EXISTS idx_sms_verifications_pesel ON sms_verifications (patient_pesel);
+CREATE INDEX IF NOT EXISTS idx_sms_verifications_status ON sms_verifications (status);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_pesel ON auth_sessions (patient_pesel);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions (auth_token);
+CREATE INDEX IF NOT EXISTS idx_auth_events_pesel ON auth_events (patient_pesel);
+CREATE INDEX IF NOT EXISTS idx_auth_events_type ON auth_events (event_type);
