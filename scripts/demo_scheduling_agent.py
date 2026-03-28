@@ -19,8 +19,8 @@ def main() -> None:
         "verify_patient_identity",
         {
             "pesel": "02211312345",
-            "verification_zip": "00-001",
-            "full_name": "Jan Kowalski",
+            "verification_zip": "10001",
+            "full_name": "John Smith",
         },
     )
     cardiology_slots = tools.call_tool(
@@ -31,7 +31,7 @@ def main() -> None:
         "book_appointment",
         {
             "patient_pesel": "02211312345",
-            "doctor_name": "Dr. Anna Nowak",
+            "doctor_name": "Dr. Emily Carter",
             "appointment_datetime": "2026-03-29 10:00",
         },
     )

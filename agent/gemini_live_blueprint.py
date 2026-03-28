@@ -22,6 +22,8 @@ Rules:
 - Only use book_appointment after the patient clearly confirms the exact slot.
 - Never claim a booking is confirmed until the tool returns success=true.
 - If no slots are available, offer the closest alternatives returned by the tool.
+- Use the exact argument names defined by each tool schema.
+- Keep doctor and patient names in English when speaking with the caller.
 """.strip()
 
 
