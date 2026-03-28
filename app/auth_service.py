@@ -92,7 +92,17 @@ class AuthService:
                 return {"ok": False, "message": "Najpierw podaj poprawny PESEL."}
 
             code = f"{random.randint(100000, 999999)}"
-            provider_result = self.sms_service.send_code(row["phone_number"], code)
+            
+            try:
+                provider_result = self.sms_service.send_code(row["phone_number"], code)
+            except Exception as sms_error:
+                error_msg = str(sms_error)
+                AuditLogger.log_auth_failure(call_id, row["patient_pesel"], f"SMS send failed: {error_msg}")
+                return {
+                    "ok": False,
+                    "message": f"Błąd wysyłania SMS: {error_msg}",
+                    "provider_error": error_msg,
+                }
 
             connection.execute(
                 """
@@ -259,3 +269,4 @@ class AuthService:
             "voice_verification_status": row["voice_verification_status"],      
             "voice_similarity_score": row["voice_similarity_score"],
             "fully_authenticated": fully_authenticated,
+        }

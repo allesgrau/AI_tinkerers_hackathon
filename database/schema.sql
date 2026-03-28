@@ -67,9 +67,10 @@ CREATE TABLE IF NOT EXISTS sms_verifications (
 CREATE TABLE IF NOT EXISTS auth_sessions (
     session_id TEXT PRIMARY KEY,
     call_id TEXT UNIQUE,
-    patient_pesel TEXT NOT NULL,
-    auth_token TEXT NOT NULL,
+    patient_pesel TEXT,
+    auth_token TEXT,
     sms_code TEXT,
+    sms_sent_at TIMESTAMP,
     pesel_verified INTEGER DEFAULT 0,
     sms_verified INTEGER DEFAULT 0,
     voice_verified INTEGER DEFAULT 0,
@@ -77,17 +78,19 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
     voice_verification_status TEXT DEFAULT 'pending' CHECK (voice_verification_status IN ('pending', 'passed', 'failed', 'skipped')),
     voice_similarity_score REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP NOT NULL,
+    expires_at TIMESTAMP,
     status TEXT CHECK (status IN ('active', 'expired', 'revoked')) DEFAULT 'active',
     FOREIGN KEY (patient_pesel) REFERENCES patients (pesel) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS auth_events (
     event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    call_id TEXT,
     patient_pesel TEXT,
-    event_type TEXT NOT NULL CHECK (event_type IN ('pesel_lookup', 'sms_sent', 'sms_verified', 'voice_enrolled', 'voice_verified', 'auth_failed', 'session_created')),
-    status TEXT CHECK (status IN ('success', 'failure')),
+    event_type TEXT NOT NULL CHECK (event_type IN ('pesel_lookup', 'pesel_verified', 'pesel_failed', 'sms_sent', 'sms_verified', 'sms_failed', 'voice_enrolled', 'voice_verified', 'voice_failed', 'session_created', 'session_revoked', 'auth_failed')),
+    status TEXT CHECK (status IN ('success', 'failure', 'warning')),
     details TEXT,
     ip_address TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

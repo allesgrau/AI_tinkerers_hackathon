@@ -2,7 +2,7 @@ PATIENTS = [
     {
         "pesel": "02211312345",
         "full_name": "Jan Kowalski",
-        "phone_number": "+48501111222",
+        "phone_number": "+12603773910",
         "enrolled_voice_sample": None,
         "verification_zip": "00-001",
     },
