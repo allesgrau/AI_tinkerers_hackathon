@@ -1,20 +1,22 @@
 from __future__ import annotations
 
-from voiceguard.db import sqlite_connection
+from voiceguard.db import PatientRepository, SQLitePatientRepository
+from voiceguard.models import PatientRecord
 
 
-def lookup_patient(pesel: str, db_path: str = "hospital_agent.db") -> dict | None:
-    with sqlite_connection(db_path) as connection:
-        row = connection.execute(
-            "SELECT pesel, full_name, phone_number FROM patients WHERE pesel = ?",
-            (pesel,),
-        ).fetchone()
+def normalize_pesel(value: str) -> str:
+    return "".join(ch for ch in value if ch.isdigit())
 
-    if row is None:
-        return None
 
-    return {
-        "pesel": row["pesel"],
-        "full_name": row["full_name"],
-        "phone_number": row["phone_number"],
-    }
+def is_valid_pesel_format(value: str) -> bool:
+    normalized = normalize_pesel(value)
+    return len(normalized) == 11 and normalized.isdigit()
+
+
+def lookup_patient(
+    pesel: str,
+    db_path: str = "hospital_agent.db",
+    patient_repository: PatientRepository | None = None,
+) -> PatientRecord | None:
+    repository = patient_repository or SQLitePatientRepository(db_path)
+    return repository.get_by_pesel(normalize_pesel(pesel))
