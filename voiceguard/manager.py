@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 from voiceguard.config import VoiceGuardSettings
+from voiceguard.providers import OtpSender
 from voiceguard.session import VerificationSession
 
 
 class SessionManager:
-    def __init__(self, settings: VoiceGuardSettings) -> None:
+    def __init__(self, settings: VoiceGuardSettings, otp_sender: OtpSender | None = None) -> None:
         self.settings = settings
+        self.otp_sender = otp_sender
         self._sessions: dict[str, VerificationSession] = {}
 
     def get_or_create(self, session_id: str, pesel: str = "") -> VerificationSession:
         if session_id not in self._sessions:
-            session = VerificationSession(pesel=pesel, settings=self.settings)
+            session = VerificationSession(pesel=pesel, settings=self.settings, otp_sender=self.otp_sender)
             session.session_id = session_id
             self._sessions[session_id] = session
         else:

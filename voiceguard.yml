@@ -8,7 +8,7 @@ verification:
     threshold: 0.72
     min_audio_seconds: 3
   otp:
-    provider: mock
+    provider: twilio
     expiry_seconds: 300
   security:
     max_attempts: 3

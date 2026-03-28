@@ -5,6 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from pathlib import Path as _P
+
+from dotenv import load_dotenv
+load_dotenv(_P(__file__).resolve().parent.parent.parent / ".env")
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -17,6 +21,7 @@ from pydantic import BaseModel, Field
 from voiceguard.config import load_settings
 from voiceguard.crypto.jwt_tokens import issue_session_token
 from voiceguard.manager import SessionManager
+from voiceguard.sms_sender import TwilioSmsSender
 from voiceguard.models import VerificationResult
 from voiceguard.risk import assess_risk, classify_voice_confidence
 from voiceguard.server.events import (
@@ -73,7 +78,8 @@ app.include_router(twilio_router)
 
 # ── In-memory session store ──────────────────────────────────────────
 
-session_manager = SessionManager(settings)
+sms_sender = TwilioSmsSender()
+session_manager = SessionManager(settings, otp_sender=sms_sender)
 
 
 def _get_or_create_session(session_id: str, pesel: str = "") -> VerificationSession:
@@ -104,6 +110,11 @@ class VoicePayload(BaseModel):
     audio_base64: str
 
 
+class EnrollVoicePayload(BaseModel):
+    pesel: str = Field(min_length=11, max_length=20)
+    audio_base64: str
+
+
 class StatusPayload(BaseModel):
     session_id: str = Field(min_length=1)
 
@@ -114,6 +125,30 @@ class StatusPayload(BaseModel):
 @app.get("/health")
 def health() -> dict:
     return {"ok": True, "service": "voiceguard", "version": "0.1.0"}
+
+
+# ── Voice enrollment ────────────────────────────────────────────────
+
+
+@app.post("/api/enroll/voice")
+async def enroll_voice(payload: EnrollVoicePayload) -> dict[str, Any]:
+    import base64
+    from voiceguard.crypto.embedding_store import store_embedding
+    from voiceguard.speaker_encoder import extract_embedding
+
+    audio_bytes = base64.b64decode(payload.audio_base64)
+    size_kb = len(audio_bytes) / 1024
+    logger.info("Enrollment audio received: %.1f KB for PESEL %s...", size_kb, payload.pesel[:4])
+
+    embedding = extract_embedding(audio_bytes)
+    stored = store_embedding(pesel=payload.pesel, embedding=embedding)
+
+    return {
+        "ok": True,
+        "pesel": payload.pesel,
+        "voiceprint_hash": stored.voiceprint_hash,
+        "embedding_dim": len(embedding),
+    }
 
 
 # ── Verification endpoints ──────────────────────────────────────────
@@ -363,8 +398,17 @@ async def list_scenarios() -> dict[str, Any]:
     return {"scenarios": available_scenarios()}
 
 
-# ── Serve built UI (if available) ───────────────────────────────────
+# ── Serve verify.html and built UI ─────────────────────────────────
 
-_ui_dist = Path(__file__).resolve().parent.parent.parent / "ui" / "dist"
+_project_root = Path(__file__).resolve().parent.parent.parent
+
+
+@app.get("/verify")
+async def serve_verify():
+    from fastapi.responses import FileResponse
+    return FileResponse(str(_project_root / "verify.html"))
+
+
+_ui_dist = _project_root / "ui" / "dist"
 if _ui_dist.is_dir():
     app.mount("/", StaticFiles(directory=str(_ui_dist), html=True), name="ui")

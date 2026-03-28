@@ -16,6 +16,7 @@ from voiceguard.models import (
 from voiceguard.otp import OtpService
 from voiceguard.pesel import is_valid_pesel_format, lookup_patient, normalize_pesel
 from voiceguard.providers import OtpSender
+from voiceguard.crypto.embedding_store import get_latest_embedding_vector
 from voiceguard.voice import VoiceVerifier
 
 if TYPE_CHECKING:
@@ -167,7 +168,8 @@ class VerificationSession:
         return ok
 
     def verify_voice(self, audio_bytes: bytes) -> VerificationResult:
-        verified, score = self.voice_verifier.verify(audio_bytes=audio_bytes)
+        enrolled_embedding = get_latest_embedding_vector(self.pesel, db_path=self.db_path)
+        verified, score = self.voice_verifier.verify(audio_bytes=audio_bytes, enrolled_embedding=enrolled_embedding)
         self.result.voice_verified = verified
         self.result.voice_score = score
         self._emit("voice", "verified" if verified else "failed", {"score": score})
