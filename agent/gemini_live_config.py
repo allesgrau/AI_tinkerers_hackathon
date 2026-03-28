@@ -31,6 +31,8 @@ def build_sdk_tools() -> list[types.Tool]:
 def build_live_connect_config(
     response_modalities: Sequence[str] | None = None,
     voice_name: str | None = None,
+    input_audio_transcription: bool = False,
+    output_audio_transcription: bool = False,
 ) -> types.LiveConnectConfig:
     modalities = list(response_modalities or ["TEXT"])
     speech_config = None
@@ -46,4 +48,10 @@ def build_live_connect_config(
         system_instruction=SYSTEM_INSTRUCTION,
         tools=build_sdk_tools(),
         speech_config=speech_config,
+        input_audio_transcription=(
+            types.AudioTranscriptionConfig() if input_audio_transcription else None
+        ),
+        output_audio_transcription=(
+            types.AudioTranscriptionConfig() if output_audio_transcription else None
+        ),
     )

@@ -2,6 +2,75 @@
 
 SQLite database setup for a Gemini Live scheduling agent.
 
+## Demo-ready live call flow
+
+The repo now has a demo-ready phone flow for:
+
+- Twilio inbound call webhook at `POST /twilio/voice`
+- bidirectional Twilio Media Streams WebSocket at `/twilio/media-stream`
+- Gemini Live voice agent with database tools for:
+  - `verify_patient_identity`
+  - `find_doctor_availability`
+  - `book_appointment`
+- live dashboard at `voice-monitor.html` showing:
+  - caller and agent transcript
+  - tool calls and tool results
+  - backend reasoning and transport logs
+
+### Required env vars
+
+Set these in `.env`:
+
+```env
+GEMINI_API_KEY=your_key_here
+GEMINI_LIVE_MODEL=models/gemini-3.1-flash-live-preview
+GEMINI_LIVE_VOICE=Zephyr
+PUBLIC_BASE_URL=https://your-public-ngrok-or-cloudflare-url
+```
+
+`PUBLIC_BASE_URL` must be a public HTTPS URL that Twilio can reach. The backend converts it to `wss://.../twilio/media-stream` inside the generated TwiML response.
+
+### Run the demo
+
+1. Prepare the database:
+
+```bash
+python3 scripts/setup_database.py
+```
+
+2. Run the backend:
+
+```bash
+venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+3. Start the frontend dev server on another terminal:
+
+```bash
+npm install
+npm run dev
+```
+
+4. Open the live dashboard:
+
+```text
+http://127.0.0.1:5173/voice-monitor.html
+```
+
+5. Expose the backend publicly, for example with ngrok:
+
+```bash
+ngrok http 8000
+```
+
+6. In Twilio Console, set your phone number voice webhook to:
+
+```text
+https://YOUR_PUBLIC_URL/twilio/voice
+```
+
+7. Call the Twilio number. The backend will open a Gemini Live session, stream audio both ways, execute the scheduling tools against SQLite, and publish transcript/tool events to the dashboard.
+
 ## What is included
 
 - `patients` table with PESEL stored as `TEXT` to preserve leading zeroes

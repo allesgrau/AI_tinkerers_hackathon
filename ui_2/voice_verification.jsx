@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import ConnectionStatus from "./components/ConnectionStatus";
-import StepProgress from "./components/StepProgress";
-import RiskIndicators from "./components/RiskIndicators";
-import TranscriptPanel from "./components/TranscriptPanel";
 import ReasoningPanel from "./components/ReasoningPanel";
 import SessionOverlay from "./components/SessionOverlay";
 import SessionSidebar from "./components/SessionSidebar";
+import ToolActivityPanel from "./components/ToolActivityPanel";
+import TranscriptPanel from "./components/TranscriptPanel";
 import { useVoiceGuard } from "./useVoiceGuard";
 
 export default function App() {
@@ -17,12 +16,12 @@ export default function App() {
     availableSessions,
     connectionStatus,
     transcript,
+    toolActivity,
     reasoning,
-    steps,
-    riskIndicators,
     scenarios,
     currentScenario,
     sessionComplete,
+    callDetails,
     setSessionComplete,
     startScenario,
     subscribeToLiveSession,
@@ -33,6 +32,27 @@ export default function App() {
     scenarios.length > 0
       ? scenarios
       : ["happy_path", "wrong_voice", "brute_force", "replay_attack"];
+
+  const summaryCards = [
+    {
+      label: "Call status",
+      value: prettifyValue(callDetails.status || "idle")
+    },
+    {
+      label: "Caller",
+      value: callDetails.from_number || "Waiting for Twilio"
+    },
+    {
+      label: "Model",
+      value: callDetails.model || "Not connected"
+    },
+    {
+      label: "Tools used",
+      value: String(
+        toolActivity.filter((item) => item.kind === "call").length
+      )
+    }
+  ];
 
   return (
     <>
@@ -108,13 +128,42 @@ export default function App() {
         .dashboard-summary {
           padding: 18px 22px 14px;
           display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 12px;
         }
+        .summary-card {
+          padding: 16px;
+          border-radius: 18px;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.08);
+          min-width: 0;
+        }
+        .summary-label {
+          color: #64748b;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 1.1px;
+          margin-bottom: 8px;
+        }
+        .summary-value {
+          color: #e5edf8;
+          font-size: 18px;
+          font-weight: 700;
+          line-height: 1.3;
+          word-break: break-word;
+        }
         .dashboard-main {
-          display: flex;
+          display: grid;
+          grid-template-columns: minmax(360px, 1.1fr) minmax(340px, 0.9fr);
           min-height: 0;
           border-top: 1px solid #172436;
           border-bottom: 1px solid #172436;
+        }
+        .right-column {
+          display: grid;
+          grid-template-rows: minmax(260px, 0.95fr) minmax(220px, 1fr);
+          min-height: 0;
+          border-left: 1px solid #172436;
         }
         .dashboard-footer {
           display: flex;
@@ -127,6 +176,7 @@ export default function App() {
         }
         @media (max-width: 1180px) {
           .dashboard-summary {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             padding: 16px 18px 12px;
           }
           .dashboard-header {
@@ -136,7 +186,11 @@ export default function App() {
         }
         @media (max-width: 980px) {
           .dashboard-main {
-            flex-direction: column;
+            grid-template-columns: 1fr;
+          }
+          .right-column {
+            border-left: none;
+            border-top: 1px solid #172436;
           }
           .dashboard-footer {
             padding: 10px 18px;
@@ -152,6 +206,11 @@ export default function App() {
           .header-actions {
             width: 100%;
             justify-content: flex-start;
+          }
+        }
+        @media (max-width: 640px) {
+          .dashboard-summary {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
@@ -190,16 +249,19 @@ export default function App() {
             <div className="header-brand">
               <div className="brand-mark">VG</div>
               <div className="brand-copy">
-                <div style={{ fontSize: 22, fontWeight: 700 }}>VoiceGuard</div>
+                <div style={{ fontSize: 22, fontWeight: 700 }}>VoiceGuard Live Ops</div>
                 <div style={{ color: "#64748b", fontSize: 12 }}>
-                  Operational dashboard for transcript, reasoning, and verification risk.
+                  Twilio phone call monitor with live transcript and tool usage.
                 </div>
                 <div className="session-badges">
                   <span className="session-badge">
                     Session: {activeSessionId || "not connected"}
                   </span>
                   <span className="session-badge">
-                    {mode === "live" ? "Live session" : "Demo mode"}
+                    {mode === "live" ? "Live phone call" : "Demo mode"}
+                  </span>
+                  <span className="session-badge">
+                    To: {callDetails.to_number || "Twilio number not attached yet"}
                   </span>
                 </div>
               </div>
@@ -224,22 +286,31 @@ export default function App() {
 
           {summaryVisible ? (
             <section className="dashboard-summary">
-              <RiskIndicators indicators={riskIndicators} />
-              <StepProgress steps={steps} />
+              {summaryCards.map((card) => (
+                <div key={card.label} className="summary-card">
+                  <div className="summary-label">{card.label}</div>
+                  <div className="summary-value">{card.value}</div>
+                </div>
+              ))}
             </section>
           ) : null}
 
           <main className="dashboard-main">
             <TranscriptPanel transcript={transcript} />
-            <ReasoningPanel reasoning={reasoning} />
+            <div className="right-column">
+              <ToolActivityPanel toolActivity={toolActivity} />
+              <ReasoningPanel reasoning={reasoning} />
+            </div>
           </main>
 
           <footer className="dashboard-footer">
-            <span>Powered by VoiceGuard</span>
+            <span>Powered by VoiceGuard + Gemini Live + Twilio Media Streams</span>
             <span>
               {sessionComplete
                 ? `Session result: ${sessionComplete.result}`
-                : "Session in progress"}
+                : callDetails.error
+                  ? `Call error: ${callDetails.error}`
+                  : "Call in progress"}
             </span>
           </footer>
         </div>
@@ -251,6 +322,10 @@ export default function App() {
       />
     </>
   );
+}
+
+function prettifyValue(value) {
+  return String(value).replaceAll("_", " ");
 }
 
 const toggleButtonStyle = {

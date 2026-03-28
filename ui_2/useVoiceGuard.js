@@ -6,6 +6,15 @@ const initialSteps = {
   voice: "idle"
 };
 
+const initialCallDetails = {
+  status: "idle",
+  from_number: null,
+  to_number: null,
+  stream_sid: null,
+  model: null,
+  error: null
+};
+
 export function useVoiceGuard() {
   const socketRef = useRef(null);
   const [connectionStatus, setConnectionStatus] = useState("connecting");
@@ -13,6 +22,7 @@ export function useVoiceGuard() {
   const [activeSessionId, setActiveSessionId] = useState("");
   const [availableSessions, setAvailableSessions] = useState([]);
   const [transcript, setTranscript] = useState([]);
+  const [toolActivity, setToolActivity] = useState([]);
   const [reasoning, setReasoning] = useState([]);
   const [steps, setSteps] = useState(initialSteps);
   const [riskIndicators, setRiskIndicators] = useState({
@@ -24,9 +34,11 @@ export function useVoiceGuard() {
   const [scenarios, setScenarios] = useState([]);
   const [currentScenario, setCurrentScenario] = useState("happy_path");
   const [sessionComplete, setSessionComplete] = useState(null);
+  const [callDetails, setCallDetails] = useState(initialCallDetails);
 
   const resetDashboard = () => {
     setTranscript([]);
+    setToolActivity([]);
     setReasoning([]);
     setSteps(initialSteps);
     setRiskIndicators({
@@ -36,10 +48,12 @@ export function useVoiceGuard() {
       overall_risk: "unknown"
     });
     setSessionComplete(null);
+    setCallDetails(initialCallDetails);
   };
 
   const replayEvents = (events) => {
     const nextTranscript = [];
+    const nextToolActivity = [];
     const nextReasoning = [];
     const nextSteps = { ...initialSteps };
     let nextRiskIndicators = {
@@ -49,13 +63,20 @@ export function useVoiceGuard() {
       overall_risk: "unknown"
     };
     let nextSessionComplete = null;
+    let nextCallDetails = initialCallDetails;
 
     (events || []).forEach((event) => {
       if (event.type === "transcript.add") {
         nextTranscript.push(normalizeTranscriptEvent(event));
       }
+      if (event.type === "tool.call" || event.type === "tool.result") {
+        nextToolActivity.push(normalizeToolEvent(event));
+      }
       if (event.type === "reasoning.add") {
         nextReasoning.push(event);
+      }
+      if (event.type === "call.update") {
+        nextCallDetails = normalizeCallDetails(nextCallDetails, event);
       }
       if (event.type === "step.update" && event.step) {
         nextSteps[event.step] = normalizeStepStatus(event.status);
@@ -72,10 +93,12 @@ export function useVoiceGuard() {
     });
 
     setTranscript(nextTranscript);
+    setToolActivity(nextToolActivity);
     setReasoning(nextReasoning);
     setSteps(nextSteps);
     setRiskIndicators(nextRiskIndicators);
     setSessionComplete(nextSessionComplete);
+    setCallDetails(nextCallDetails);
   };
 
   const subscribeToSession = (sessionId, nextMode = "live") => {
@@ -106,11 +129,19 @@ export function useVoiceGuard() {
 
   const loadSessions = async () => {
     try {
-      const response = await fetch("/api/sessions");
-      if (!response.ok) {
+      const response = await fetch("/api/live-calls");
+      if (response.ok) {
+        const payload = await response.json();
+        setAvailableSessions(payload.items || []);
         return;
       }
-      const payload = await response.json();
+
+      const fallback = await fetch("/api/sessions");
+      if (!fallback.ok) {
+        return;
+      }
+
+      const payload = await fallback.json();
       setAvailableSessions(payload.sessions || []);
     } catch {
       setAvailableSessions([]);
@@ -165,8 +196,15 @@ export function useVoiceGuard() {
         case "transcript.add":
           setTranscript((items) => [...items, normalizeTranscriptEvent(payload)]);
           break;
+        case "tool.call":
+        case "tool.result":
+          setToolActivity((items) => [...items, normalizeToolEvent(payload)]);
+          break;
         case "reasoning.add":
           setReasoning((items) => [...items, payload]);
+          break;
+        case "call.update":
+          setCallDetails((prev) => normalizeCallDetails(prev, payload));
           break;
         case "step.update":
           setSteps((prev) => ({
@@ -237,12 +275,14 @@ export function useVoiceGuard() {
     availableSessions,
     connectionStatus,
     transcript,
+    toolActivity,
     reasoning,
     steps,
     riskIndicators,
     scenarios,
     currentScenario,
     sessionComplete,
+    callDetails,
     setSessionComplete,
     startScenario,
     subscribeToLiveSession,
@@ -270,6 +310,17 @@ function normalizeTranscriptEvent(event) {
   return {
     ...event,
     parts: [{ text: event.text, flagged: false }]
+  };
+}
+
+function normalizeToolEvent(event) {
+  return {
+    kind: event.type === "tool.call" ? "call" : "result",
+    name: event.name || "unknown_tool",
+    arguments: event.arguments || {},
+    result: event.result || {},
+    success: typeof event.success === "boolean" ? event.success : null,
+    ts: event.ts
   };
 }
 
@@ -311,5 +362,17 @@ function normalizeSessionComplete(payload) {
   return {
     ...payload,
     result: payload.rejected ? "rejected" : payload.token ? "verified" : "review"
+  };
+}
+
+function normalizeCallDetails(previous, payload) {
+  return {
+    ...previous,
+    status: payload.status || previous.status,
+    from_number: payload.from_number ?? previous.from_number,
+    to_number: payload.to_number ?? previous.to_number,
+    stream_sid: payload.stream_sid ?? previous.stream_sid,
+    model: payload.model ?? previous.model,
+    error: payload.error ?? previous.error
   };
 }

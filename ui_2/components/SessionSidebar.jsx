@@ -53,7 +53,7 @@ export default function SessionSidebar({
         </div>
         <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>VoiceGuard</div>
         <div style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
-          Live verification UI for transcript, reasoning, and risk review.
+          Live phone-call dashboard for transcript, agent tools, and scheduling actions.
         </div>
       </div>
 
@@ -103,7 +103,7 @@ export default function SessionSidebar({
           }}
         >
           <div style={{ color: "#94a3b8", fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>
-            Connect the dashboard to a real `session_id` from the backend verification flow.
+            Connect the dashboard to a Twilio call session or any demo session from the backend.
           </div>
           <input
             value={sessionInput}
@@ -179,7 +179,7 @@ export default function SessionSidebar({
                     {session.session_id}
                   </div>
                   <div style={{ fontSize: 11, color: "#94a3b8" }}>
-                    OTP tries: {session.otp_attempts} · Completed: {session.completed ? "yes" : "no"}
+                    Status: {session.status || "active"} · Tools: {session.tool_count ?? 0}
                   </div>
                 </button>
               ))}
@@ -257,7 +257,7 @@ export default function SessionSidebar({
           }}
         >
           The left panel now matches the earlier product direction: sidebar for control
-          and context, transcript in the center, reasoning and risk on the right.
+          and context, transcript on the left, agent tools and backend logs on the right.
         </div>
       </div>
     </aside>

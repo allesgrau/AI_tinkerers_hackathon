@@ -141,6 +141,25 @@ def transcript(speaker: str, text: str) -> Event:
     return Event("transcript.add", {"speaker": speaker, "text": text})
 
 
+def tool_call(name: str, arguments: dict[str, Any] | None = None) -> Event:
+    return Event("tool.call", {"name": name, "arguments": arguments or {}})
+
+
+def tool_result(
+    name: str,
+    result: dict[str, Any] | None = None,
+    success: bool | None = None,
+) -> Event:
+    payload = {"name": name, "result": result or {}}
+    if success is not None:
+        payload["success"] = success
+    return Event("tool.result", payload)
+
+
+def call_update(status: str, **details: Any) -> Event:
+    return Event("call.update", {"status": status, **details})
+
+
 def risk_update(indicators: dict[str, Any]) -> Event:
     return Event("risk.update", {"indicators": indicators})
 

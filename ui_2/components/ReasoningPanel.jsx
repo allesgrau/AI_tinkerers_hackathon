@@ -28,7 +28,7 @@ export default function ReasoningPanel({ reasoning }) {
       <div style={{ height: 52, borderBottom: "1px solid #172436", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px" }}>
         <div>
           <div style={{ color: "#8bf5b2", fontSize: 11, textTransform: "uppercase", letterSpacing: 1.1 }}>Reasoning panel</div>
-          <div style={{ color: "#64748b", fontSize: 12 }}>Agent reasoning, verification, and risk logs</div>
+          <div style={{ color: "#64748b", fontSize: 12 }}>Agent notes, transport logs, and backend events</div>
         </div>
         <div
           style={{
