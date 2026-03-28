@@ -17,6 +17,7 @@ class AuditEventRecord:
     sequence_no: int
     session_id: str
     event_type: str
+    event_json: dict[str, Any]
     event_hash: str
     prev_hash: str
     created_at: str
@@ -31,6 +32,10 @@ class ChainVerificationReport:
     found_prev_hash: str | None = None
     expected_event_hash: str | None = None
     found_event_hash: str | None = None
+
+
+def _utc_now() -> str:
+    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
 
 def _canonical_json(event: dict[str, Any]) -> str:
@@ -75,7 +80,7 @@ def append_event(
     db_path: str = "hospital_agent.db",
 ) -> AuditEventRecord:
     _ensure_audit_schema(db_path)
-    created_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    created_at = _utc_now()
     event = {
         "session_id": session_id,
         "event_type": event_type,
@@ -132,10 +137,80 @@ def append_event(
         sequence_no=sequence_no,
         session_id=session_id,
         event_type=event_type,
+        event_json=event,
         event_hash=event_hash,
         prev_hash=prev_hash,
         created_at=created_at,
     )
+
+
+def append_stream_event(event: dict[str, Any], db_path: str = "hospital_agent.db") -> AuditEventRecord:
+    """Append an EventBus-like event ({type, ts, session_id, ...}) to the hash chain."""
+    session_id = str(event.get("session_id") or "")
+    if not session_id:
+        raise ValueError("Event is missing required field: session_id")
+
+    event_type = str(event.get("type") or "unknown")
+    payload = {
+        key: value
+        for key, value in event.items()
+        if key not in {"session_id", "type"}
+    }
+    return append_event(
+        session_id=session_id,
+        event_type=event_type,
+        event_payload=payload,
+        db_path=db_path,
+    )
+
+
+def get_events(session_id: str, db_path: str = "hospital_agent.db") -> list[AuditEventRecord]:
+    _ensure_audit_schema(db_path)
+    with sqlite_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT sequence_no, session_id, event_type, event_json, event_hash, prev_hash, created_at
+            FROM audit_chain_events
+            WHERE session_id = ?
+            ORDER BY sequence_no ASC
+            """,
+            (session_id,),
+        ).fetchall()
+
+    return [
+        AuditEventRecord(
+            sequence_no=int(row["sequence_no"]),
+            session_id=str(row["session_id"]),
+            event_type=str(row["event_type"]),
+            event_json=json.loads(str(row["event_json"])),
+            event_hash=str(row["event_hash"]),
+            prev_hash=str(row["prev_hash"]),
+            created_at=str(row["created_at"]),
+        )
+        for row in rows
+    ]
+
+
+def export_chain_json(session_id: str, db_path: str = "hospital_agent.db") -> dict[str, Any]:
+    records = get_events(session_id=session_id, db_path=db_path)
+    verification = verify_chain(session_id=session_id, db_path=db_path)
+    return {
+        "session_id": session_id,
+        "valid": verification.valid,
+        "checked_events": verification.checked_events,
+        "broken_at_sequence": verification.broken_at_sequence,
+        "events": [
+            {
+                "sequence_no": record.sequence_no,
+                "event_type": record.event_type,
+                "event": record.event_json,
+                "prev_hash": record.prev_hash,
+                "event_hash": record.event_hash,
+                "created_at": record.created_at,
+            }
+            for record in records
+        ],
+    }
 
 
 def verify_chain(session_id: str, db_path: str = "hospital_agent.db") -> ChainVerificationReport:
